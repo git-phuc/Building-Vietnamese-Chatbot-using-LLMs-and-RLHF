@@ -1,0 +1,84 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== Virtual environments =====
+venv/
+.venv/
+env/
+.env
+ENV/
+
+# ===== Notebook checkpoints =====
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ===== ML / model artifacts =====
+# Trained checkpoints, merged models, LoRA adapters, converted GGUF
+models/
+checkpoints/
+outputs/
+output/
+runs/
+wandb/
+mlruns/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.lora
+
+# ===== Large datasets =====
+data/
+datasets/
+cache/
+*.arrow
+*.parquet
+*.h5
+
+# ===== Hugging Face cache =====
+.cache/
+.huggingface/
+
+# ===== Ray / vLLM / OpenRLHF runtime =====
+ray_results/
+/tmp/
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Editors / OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===== Claude Code local =====
+.claude/settings.local.json
+.claude/worktrees/
