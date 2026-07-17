@@ -1,6 +1,6 @@
 # RLHF on a Shoestring: Building a Vietnamese Chatbot from a Raw Base Model on Free-Tier GPUs
 
-> **Report chính thức của đồ án** — viết dần theo tiến độ pipeline (xem bảng trạng thái ở `README.md`). Các mục đánh dấu ⬜ là chỗ chờ số liệu thật từ §6.5; phần văn đã hoàn chỉnh có thể dùng thẳng cho báo cáo/slide bảo vệ.
+> **Report chính thức của đồ án** — viết dần theo tiến độ pipeline (xem bảng trạng thái ở `README.md`). Các mục đánh dấu ⬜ là chỗ chờ số liệu thật từ §6.5; phần văn đã hoàn chỉnh có thể dùng thẳng cho báo cáo/slide bảo vệ. Bản LaTeX để nộp: `latex/main.tex` (+ `latex/references.bib`) — sửa nội dung bên nào thì cập nhật bên kia.
 >
 > Tên rút gọn khi cần: *RLHF on a Shoestring*.
 
