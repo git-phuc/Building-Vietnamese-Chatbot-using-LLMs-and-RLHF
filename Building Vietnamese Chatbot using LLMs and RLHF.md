@@ -215,7 +215,7 @@ Mỗi checkpoint phải chứa đủ để resume đúng trạng thái (không c
 | Thành phần | Lựa chọn |
 |---|---|
 | Base model | `Qwen/Qwen3-1.7B-Base` (raw, chưa instruct) |
-| Data tiếng Việt | `wikimedia/wikipedia` config `20231101.vi` (chất lượng cao, ~1.3M bài) + `statmt/cc100` `lang="vi"` (quy mô lớn, stream + lọc) |
+| Data tiếng Việt | `wikimedia/wikipedia` config `20231101.vi` (chất lượng cao, ~1.3M bài) + `HuggingFaceFW/fineweb-2` config `vie_Latn` (web corpus đã lọc, quy mô lớn, stream). *Không dùng CC100/OSCAR — dataset kiểu script/gated, `datasets` ≥ 3.0 không load được (đã vấp lỗi này trên Kaggle)* |
 | English replay | `HuggingFaceFW/fineweb-edu` (`sample-10BT`, stream) — trộn ~20% để giảm catastrophic forgetting |
 | Framework | **QLoRA rank lớn (r=64) trên base 4-bit**, KHÔNG full-parameter — ở 1.7B, full-param + Adam optimizer states (fp32, 2x params) đã vượt quá 16GB VRAM của T4 trước cả khi tính activations. LoRA r=64 (lớn hơn r=16 của SFT vì CPT cần cập nhật nhiều "kiến thức" hơn) là mức khả thi duy nhất trên 1 GPU T4 |
 | Learning rate | ~5-10 lần thấp hơn SFT (1.5e-5), warmup 10% |
@@ -238,15 +238,15 @@ from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
 
 wiki_vi = load_dataset("wikimedia/wikipedia", "20231101.vi", split="train")  # ~1.3M bài, tải hết
 
-cc100_vi = load_dataset("statmt/cc100", lang="vi", split="train", streaming=True)
-cc100_vi = Dataset.from_list([                       # stream, lọc dòng quá ngắn, lấy 1.5M đoạn
-    x for _, x in zip(range(1_500_000),
-        (r for r in cc100_vi if len(r["text"]) > 200))
+web_vi = load_dataset("HuggingFaceFW/fineweb-2", "vie_Latn", split="train", streaming=True)
+web_vi = Dataset.from_list([                         # stream, chỉ giữ cột text, lấy 1.5M đoạn
+    {"text": r["text"]} for _, r in zip(range(1_500_000),
+        (r for r in web_vi if len(r["text"]) > 200))
 ])
 
 fineweb_en = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT",
                           split="train", streaming=True)
-fineweb_en = Dataset.from_list([x for _, x in zip(range(150_000), fineweb_en)])
+fineweb_en = Dataset.from_list([{"text": r["text"]} for _, r in zip(range(150_000), fineweb_en)])
 
 # Cell 3: tokenize + pack thành block 2048 token (chuẩn CPT: nối tài liệu bằng EOS rồi cắt khúc)
 from transformers import AutoTokenizer
@@ -265,8 +265,8 @@ def pack(ds):
     return ds.map(group, batched=True, batch_size=1000, remove_columns=["ids"], num_proc=4)
 
 vi = pack(concatenate_datasets([wiki_vi.select_columns(["text"]),
-                                cc100_vi.select_columns(["text"])])).shuffle(seed=42)
-en = pack(fineweb_en.select_columns(["text"])).shuffle(seed=42)
+                                web_vi])).shuffle(seed=42)
+en = pack(fineweb_en).shuffle(seed=42)
 
 # Cell 4: trộn 80/20, tách eval vi + eval en (theo dõi forgetting), push lên Hub
 n_en = min(len(en), int(len(vi) * 0.25))            # 0.25 × vi ≈ 20% tổng
