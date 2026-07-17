@@ -82,3 +82,4 @@ Desktop.ini
 # ===== Claude Code local =====
 .claude/settings.local.json
 .claude/worktrees/
+CLAUDE.local.md
