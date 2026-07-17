@@ -11,16 +11,9 @@ The project goal: fine-tune an LLM on Vietnamese conversation data (SFT), then i
 - **Section 3** = the author's own *proposed improvements* over that baseline (CPT, DPO-vs-PPO, quantitative benchmarks, iterative RLHF, safety alignment, tokenizer efficiency). Superseded by Section 6, which turns these ideas into concrete executable steps.
 - **Section 6** = **the pipeline actually being executed for this project.** Build the full RLHF pipeline from a raw (non-instruct) base model, `Qwen/Qwen3-1.7B-Base`, to learn every stage hands-on rather than starting from an already-tuned model. Sailor2 is a reference benchmark to compare against in Section 6.5 eval, never a starting point. **When the user says "tiếp tục đồ án" / "làm theo pipeline chính" / asks to implement a step without naming Section 2, default to Section 6, not Section 2.**
 
-## Pipeline map (Section 2)
+## Pipeline map (Section 2 — reference only, not active work)
 
-Four blocks. When asked to implement a step, locate it here before writing code — filenames/object names in the doc are the authoritative identifiers.
-
-1. **Setup + SFT (Steps 1–4)** — Unsloth framework, `unsloth/Llama-3.2-1B-Instruct-bnb-4bit` base, QLoRA (`r=16`, 7 target modules, `use_rslora=True`), `MAX_SEQ_LENGTH=2048`, 4-bit + bf16. Dataset `5CD-AI/Vietnamese-Multi-turn-Chat-Alpaca`. `SFTTrainer`, bs=32, grad-accum=2, lr=1e-4, `max_steps=400`, `paged_adamw_8bit`. Output merged SFT model → Hub (e.g. `thuanan/Llama-3.2-1B-Instruct-Chat-sft`).
-2. **Reward Model (Steps 5–6)** — Preference data `thuanan/Vi-Alpaca-Preference` (chosen/rejected format). Trained with **OpenRLHF** `openrlhf.cli.train_rm`, value head prefix `score`, ZeRO stage 2, LoRA rank 16. Merge LoRA via `openrlhf.cli.lora_combiner` → `thuanan/Llama-3.2-1B-RM-DPO`.
-3. **RLHF/PPO (Steps 7–8)** — **OpenRLHF** `openrlhf.cli.train_ppo_ray` over a **Ray cluster** (`ray start --head --num-gpus 3` → `ray job submit`). 4 model groups (Actor w/ vLLM inference, Reference, Reward, Critic), ZeRO stage 3. Prompt data `thuanan/Prompt-Vi-Alpaca-Preference-2k`, `input_key=context_messages`, `apply_chat_template`. KL penalty vs reference model is the design constraint to preserve. Final → `thuanan/Llama-3.2-1B-RLHF-2k-vi-alpaca`.
-4. **Chat Interface (Steps 9–11)** — Convert HF model → GGUF (`llama.cpp/convert_hf_to_gguf.py --outtype bf16`), upload via `HfApi().upload_file`. Deploy with **Ollama + Open WebUI** via Docker Compose (Ollama port 11434, Open-WebUI 3001→8080, GPU reservation). Run with `ollama run hf.co/<...>-gguf`. The doc's Step 11 / Open WebUI rating-export-to-JSON mechanism is the intended source of preference data for **iterative RLHF** (Section 3.4).
-
-A lightweight alternative the doc mentions: vLLM-serve the HF model directly + Gradio ChatInterface (skip GGUF), for fast demo only.
+Slide baseline on `Llama-3.2-1B-Instruct`: SFT (QLoRA) → Reward Model (OpenRLHF) → PPO (Ray cluster) → GGUF/Ollama deploy. Don't pull config from here unless the user explicitly asks to follow the slide baseline — full detail is in the doc's Section 2, kept intentionally short here to avoid Llama-specific noise when working on the actual Qwen3 pipeline below.
 
 ## Pipeline map (Section 6 — the pipeline actually being built)
 
@@ -37,7 +30,6 @@ Seven steps, all from a raw base model. Insertion points and Hub names are autho
 
 ## Key entities (use these exact identifiers)
 
-- **Section 2 (baseline reference) models on Hub:** `unsloth/Llama-3.2-1B-Instruct-bnb-4bit`, `thuanan/Llama-3.2-1B-Instruct-Chat-sft`, `thuanan/Llama-3.2-1B-RM-DPO`, `thuanan/Llama-3.2-1B-RLHF-2k-vi-alpaca`.
 - **Section 6 (actual pipeline) checkpoint naming convention:** `<user>/Qwen3-1.7B-vi-{cpt,sft,rm,dpo,ppo}` — base model is `Qwen/Qwen3-1.7B-Base` (raw, non-instruct).
 - **Datasets on Hub:** `5CD-AI/Vietnamese-Multi-turn-Chat-Alpaca` (SFT, used by both pipelines), `thuanan/Vi-Alpaca-Preference` (RM/DPO), `thuanan/Prompt-Vi-Alpaca-Preference-2k` (PPO prompts). Section 4 lists *additional* public datasets not used by either pipeline by default (`bkai-foundation-models/vi-alpaca`, `Bactrian-X`, `OpenAssistant/oasst1`, `linhtran92/viet_bud500`, etc.) — these are a resource pool.
 - **Frameworks:** Unsloth (SFT/QLoRA), OpenRLHF (RM + PPO; also offers `train_dpo`), TRL `DPOTrainer` (preferred for Section 6's DPO step), Ray (PPO orchestration), llama.cpp (GGUF conversion), Ollama + Open WebUI (deploy).
