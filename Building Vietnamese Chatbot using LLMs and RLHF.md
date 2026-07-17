@@ -224,7 +224,7 @@ Mỗi checkpoint phải chứa đủ để resume đúng trạng thái (không c
 
 **Tổ chức thành 2 notebook Kaggle riêng biệt** — tách data prep khỏi train để mỗi session train không phải tokenize lại từ đầu:
 
-#### Notebook A — chuẩn bị data (chạy đúng 1 lần, không cần GPU)
+#### Notebook A — chuẩn bị data (chạy đúng 1 lần, không cần GPU) — file: `notebooks/cpt_a_prepare_data.ipynb`
 
 ```python
 # Cell 1: cài đặt + login
@@ -279,7 +279,7 @@ DatasetDict({
 }).push_to_hub("<user>/vi-cpt-corpus-2048", private=True)
 ```
 
-#### Notebook B — train (chạy lại mỗi session, tự resume)
+#### Notebook B — train (chạy lại mỗi session, tự resume) — file: `notebooks/cpt_b_train.ipynb`
 
 ```python
 # Cell 1: cài đặt + login (như Notebook A) + hằng số

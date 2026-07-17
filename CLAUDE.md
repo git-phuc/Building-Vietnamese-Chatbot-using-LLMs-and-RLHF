@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository nature
 
-This is a **planning/design repository, not a codebase.** `Building Vietnamese Chatbot using LLMs and RLHF.md` is the canonical project spec; `README.md` is the **status board** — a step-by-step progress table (⬜/🟡/✅) that must be updated whenever a pipeline step starts or finishes. There is no source code, build system, package manifest, or test suite — do not invent `build`/`lint`/`test` commands. To find the current step or what's next, read README.md first, then the matching §6.x in the spec. (Note: the spec has no Section 5 — numbering intentionally jumps 4 → 6; "Section 6" is the canonical name used everywhere.)
+This is a **planning/design repository plus Kaggle notebooks, not an app codebase.** `Building Vietnamese Chatbot using LLMs and RLHF.md` is the canonical project spec; `README.md` is the **status board** — a step-by-step progress table (⬜/🟡/✅) that must be updated whenever a pipeline step starts or finishes; `notebooks/` holds the runnable Kaggle notebooks (one pair/step). There is no build system, package manifest, or test suite — do not invent `build`/`lint`/`test` commands. To find the current step or what's next, read README.md first, then the matching §6.x in the spec. (Note: the spec has no Section 5 — numbering intentionally jumps 4 → 6; "Section 6" is the canonical name used everywhere.)
 
 The project goal: fine-tune an LLM on Vietnamese conversation data (SFT), then improve responses with RLHF, then ship a chat interface. The document now contains **two distinct pipelines** — do not conflate them:
 - **Section 2** = the *baseline* pipeline taken verbatim from the AI VIETNAM course slides (11 steps, uses the ready-made `Llama-3.2-1B-Instruct`). Reference/comparison material only — this is NOT the pipeline the user is actually executing for the project.
@@ -46,7 +46,8 @@ Seven steps, all from a raw base model. Insertion points and Hub names are autho
 - The user's working language is **Vietnamese**; the spec is bilingual (Vietnamese prose, English/code blocks). Match the user's language in replies.
 - Default to **Section 6** for actual project work. Only use Section 2's exact config when the user explicitly asks to "follow the slides" / "do the baseline" for reference/comparison purposes.
 - When the user asks to "implement step X" without specifying which pipeline, assume Section 6 and produce runnable, self-contained Python/bash following Section 6's config (checkpoint/resume included) — not generic defaults.
-- Content goes **into the project's `.md` files** (the spec doc and this file), not scaffolded as standalone `.ipynb`/`src/` code files — the user deliberately chose markdown-as-plan over a code scaffold.
+- Design/explanation content (what a step does, why, config rationale) goes into the spec doc's `.md`. Runnable training code additionally gets scaffolded as real `.ipynb` notebooks (one per pipeline step, e.g. `cpt.ipynb`, `sft.ipynb`) meant to be run directly on Kaggle — keep the `.md` and the notebook in sync when either changes.
+- Canonical notebooks live in `notebooks/` at the repo root (currently `cpt_a_prepare_data.ipynb` + `cpt_b_train.ipynb`, matching §6.1 exactly). If a worktree has an older per-step notebook that diverges from `notebooks/`, the `notebooks/` version wins.
 - If the user's request would conflate Section 2/3 (reference) with Section 6 (actual pipeline), surface the distinction before proceeding.
 - Hardware note: Section 2's PPO assumes a 3-GPU Ray cluster; Section 6's PPO ablation likewise needs Modal/multi-GPU and must never be pointed at Kaggle. Flag this when recommending a step.
 
