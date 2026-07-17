@@ -10,6 +10,7 @@
 | — Mục 2, 3, 4 | Tài liệu tham khảo (baseline slide Llama, ý tưởng cải tiến, kho dataset) — KHÔNG phải việc đang làm |
 | `notebooks/` | Notebook Kaggle chạy được thật, khớp 1-1 với §6.x tương ứng |
 | `research/` | Paper nền tảng theo từng topic (CPT, SFT, RLHF, DPO, QLoRA, LLM Việt/SEA, eval) — mỗi file một topic, map vào §6.x |
+| `report.md` | **Report chính thức** — *"RLHF on a Shoestring"*: abstract, đóng góp, thiết kế thực nghiệm, Q&A phản biện; điền số liệu dần theo tiến độ |
 | `README.md` (file này) | Bảng trạng thái: đang ở bước nào, xong gì rồi |
 | `CLAUDE.md` | Hướng dẫn cho coding agent (Claude Code) |
 
