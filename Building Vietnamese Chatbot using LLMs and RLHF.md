@@ -2,6 +2,12 @@
 
 **Báo cáo tổng hợp: Pipeline bắt buộc (theo tài liệu AI VIETNAM) + Phân tích ý tưởng cải tiến**
 
+> **Cách đọc tài liệu này** — chỉ có MỘT pipeline đang được thực thi, nằm ở **Mục 6**:
+> - **Mục 6** = pipeline thật của đồ án (Qwen3-1.7B-Base raw → CPT → SFT → RM → DPO → Eval → Deploy). Làm việc gì cũng bắt đầu từ đây, sơ đồ tổng quan ở 6.0.
+> - **Mục 2, 3, 4** = tài liệu tham khảo (baseline slide Llama, ý tưởng cải tiến gốc, kho dataset) — KHÔNG phải việc đang làm.
+> - **Trạng thái hiện tại** (đang ở bước nào, xong gì rồi) tra ở bảng trong `README.md`.
+> - Không có Mục 5 — đã gộp vào Mục 7 (Tài liệu tham khảo) khi tái cấu trúc; giữ nguyên số "Mục 6" vì các tài liệu khác đã tham chiếu tên này.
+
 ---
 
 ## 1. Project Statement
@@ -209,55 +215,154 @@ Mỗi checkpoint phải chứa đủ để resume đúng trạng thái (không c
 | Thành phần | Lựa chọn |
 |---|---|
 | Base model | `Qwen/Qwen3-1.7B-Base` (raw, chưa instruct) |
-| Data | Vietnamese Wikipedia dump + báo tiếng Việt (News corpus) + OSCAR-vi/CC100-vi đã lọc chất lượng |
-| Data mix | Giữ lại 10-30% dữ liệu tiếng Anh gốc (vd slice từ FineWeb/C4) để giảm catastrophic forgetting |
+| Data tiếng Việt | `wikimedia/wikipedia` config `20231101.vi` (chất lượng cao, ~1.3M bài) + `statmt/cc100` `lang="vi"` (quy mô lớn, stream + lọc) |
+| English replay | `HuggingFaceFW/fineweb-edu` (`sample-10BT`, stream) — trộn ~20% để giảm catastrophic forgetting |
 | Framework | **QLoRA rank lớn (r=64) trên base 4-bit**, KHÔNG full-parameter — ở 1.7B, full-param + Adam optimizer states (fp32, 2x params) đã vượt quá 16GB VRAM của T4 trước cả khi tính activations. LoRA r=64 (lớn hơn r=16 của SFT vì CPT cần cập nhật nhiều "kiến thức" hơn) là mức khả thi duy nhất trên 1 GPU T4 |
-| Learning rate | ~5-10 lần thấp hơn SFT (vd 1e-5 đến 2e-5), warmup dài (~5-10%) |
-| Epoch | 1-2 epoch, theo dõi eval loss trên tập tiếng Anh song song để phát hiện forgetting |
+| Learning rate | ~5-10 lần thấp hơn SFT (1.5e-5), warmup 10% |
+| Khối lượng train | **`max_steps=6000`** (không dùng epoch — data là mix nhiều nguồn nên "epoch" không có nghĩa). Effective batch 32 seq × 2048 token ≈ 65k token/step → ~400M token, vừa khớp 5-8 session Kaggle |
+| Hub repos (3 cái, đừng nhầm) | `<user>/vi-cpt-corpus-2048` (data đã pack, private) · `<user>/Qwen3-1.7B-vi-cpt-ckpt` (checkpoint resume, private) · `<user>/Qwen3-1.7B-vi-cpt` (bản merged cuối cùng — input cho Bước 2) |
+
+**Tổ chức thành 2 notebook Kaggle riêng biệt** — tách data prep khỏi train để mỗi session train không phải tokenize lại từ đầu:
+
+#### Notebook A — chuẩn bị data (chạy đúng 1 lần, không cần GPU)
 
 ```python
-from unsloth import FastLanguageModel
-from transformers import TrainingArguments, Trainer
+# Cell 1: cài đặt + login
+# !pip install -q datasets huggingface_hub
+from huggingface_hub import login
+from kaggle_secrets import UserSecretsClient
+login(UserSecretsClient().get_secret("HF_TOKEN"))  # tạo secret HF_TOKEN trong Kaggle Add-ons trước
 
-model, tokenizer = FastLanguageModel.from_pretrained(
-    "Qwen/Qwen3-1.7B-Base", max_seq_length=2048, load_in_4bit=True, dtype=None
-)
-model = FastLanguageModel.get_peft_model(
-    model,
-    r=64, lora_alpha=64, lora_dropout=0,
-    target_modules=["q_proj","k_proj","v_proj","up_proj","down_proj","o_proj","gate_proj"],
-    use_rslora=True,
-    use_gradient_checkpointing="unsloth",
-    random_state=42,
-)
+# Cell 2: tải 3 nguồn, lấy đủ ~400M token (tỉ lệ vi:en ≈ 80:20)
+from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
 
-training_args = TrainingArguments(
-    output_dir="./cpt-checkpoints",
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=8,
-    learning_rate=1.5e-5,
-    lr_scheduler_type="cosine",
-    warmup_ratio=0.1,
-    num_train_epochs=2,
-    bf16=True,
-    optim="paged_adamw_8bit",
-    save_strategy="steps",
-    save_steps=100,
-    push_to_hub=True,
-    hub_model_id="<user>/Qwen3-1.7B-vi-cpt",
-    hub_private_repo=True,
-)
-trainer = Trainer(model=model, args=training_args, train_dataset=cpt_dataset)
-trainer.train(resume_from_checkpoint=True)  # False ở lần chạy đầu tiên
+wiki_vi = load_dataset("wikimedia/wikipedia", "20231101.vi", split="train")  # ~1.3M bài, tải hết
 
-# Sau khi đạt max_steps (có thể qua nhiều session): merge LoRA vào base rồi push bản
-# merged — Bước 2 (SFT) sẽ load thẳng bản merged này, không load base + 2 adapter chồng nhau.
-model.push_to_hub_merged("<user>/Qwen3-1.7B-vi-cpt", tokenizer, save_method="merged_16bit")
+cc100_vi = load_dataset("statmt/cc100", lang="vi", split="train", streaming=True)
+cc100_vi = Dataset.from_list([                       # stream, lọc dòng quá ngắn, lấy 1.5M đoạn
+    x for _, x in zip(range(1_500_000),
+        (r for r in cc100_vi if len(r["text"]) > 200))
+])
+
+fineweb_en = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT",
+                          split="train", streaming=True)
+fineweb_en = Dataset.from_list([x for _, x in zip(range(150_000), fineweb_en)])
+
+# Cell 3: tokenize + pack thành block 2048 token (chuẩn CPT: nối tài liệu bằng EOS rồi cắt khúc)
+from transformers import AutoTokenizer
+from itertools import chain
+tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-1.7B-Base")
+BLOCK = 2048
+
+def pack(ds):
+    def tokenize(batch):
+        return {"ids": [tok(t)["input_ids"] + [tok.eos_token_id] for t in batch["text"]]}
+    def group(batch):
+        flat = list(chain.from_iterable(batch["ids"]))
+        n = (len(flat) // BLOCK) * BLOCK
+        return {"input_ids": [flat[i:i+BLOCK] for i in range(0, n, BLOCK)]}
+    ds = ds.select_columns(["text"]).map(tokenize, batched=True, remove_columns=["text"], num_proc=4)
+    return ds.map(group, batched=True, batch_size=1000, remove_columns=["ids"], num_proc=4)
+
+vi = pack(concatenate_datasets([wiki_vi.select_columns(["text"]),
+                                cc100_vi.select_columns(["text"])])).shuffle(seed=42)
+en = pack(fineweb_en.select_columns(["text"])).shuffle(seed=42)
+
+# Cell 4: trộn 80/20, tách eval vi + eval en (theo dõi forgetting), push lên Hub
+n_en = min(len(en), int(len(vi) * 0.25))            # 0.25 × vi ≈ 20% tổng
+train = concatenate_datasets([vi.select(range(len(vi) - 1000)),
+                              en.select(range(n_en - 1000))]).shuffle(seed=42)
+DatasetDict({
+    "train":   train,
+    "eval_vi": vi.select(range(len(vi) - 1000, len(vi))),
+    "eval_en": en.select(range(n_en - 1000, n_en)),
+}).push_to_hub("<user>/vi-cpt-corpus-2048", private=True)
 ```
+
+#### Notebook B — train (chạy lại mỗi session, tự resume)
+
+```python
+# Cell 1: cài đặt + login (như Notebook A) + hằng số
+# !pip install -q unsloth
+import os, time
+from huggingface_hub import HfApi, login, snapshot_download
+from kaggle_secrets import UserSecretsClient
+login(UserSecretsClient().get_secret("HF_TOKEN"))
+
+DATA_REPO  = "<user>/vi-cpt-corpus-2048"
+CKPT_REPO  = "<user>/Qwen3-1.7B-vi-cpt-ckpt"    # checkpoint resume (adapter+optimizer+scheduler)
+FINAL_REPO = "<user>/Qwen3-1.7B-vi-cpt"         # CHỈ push khi đã đạt max_steps
+OUT_DIR, MAX_STEPS, BUDGET_H = "./cpt-checkpoints", 6000, 8.0
+
+# Cell 2: kéo checkpoint mới nhất từ Hub về (None nếu là session đầu tiên)
+api = HfApi()
+api.create_repo(CKPT_REPO, private=True, exist_ok=True)
+steps = sorted(int(f.split("/")[0].split("-")[1]) for f in api.list_repo_files(CKPT_REPO)
+               if f.startswith("checkpoint-"))
+last_ckpt = None
+if steps:
+    name = f"checkpoint-{steps[-1]}"
+    snapshot_download(CKPT_REPO, allow_patterns=f"{name}/*", local_dir=OUT_DIR)
+    last_ckpt = os.path.join(OUT_DIR, name)
+print("Resume từ:", last_ckpt or "(bắt đầu mới)")
+
+# Cell 3: model + LoRA r=64 (cấu hình cố định của Bước 1)
+from unsloth import FastLanguageModel
+model, tokenizer = FastLanguageModel.from_pretrained(
+    "Qwen/Qwen3-1.7B-Base", max_seq_length=2048, load_in_4bit=True, dtype=None)
+model = FastLanguageModel.get_peft_model(
+    model, r=64, lora_alpha=64, lora_dropout=0,
+    target_modules=["q_proj","k_proj","v_proj","up_proj","down_proj","o_proj","gate_proj"],
+    use_rslora=True, use_gradient_checkpointing="unsloth", random_state=42)
+
+# Cell 4: callback — mỗi lần save thì đẩy NGUYÊN thư mục checkpoint lên Hub
+# (phải upload cả folder: optimizer.pt/scheduler.pt/rng_state/trainer_state.json thì mới
+#  resume đúng được; push_to_hub=True của TrainingArguments chỉ đẩy adapter nên KHÔNG dùng),
+# và tự dừng khi gần hết giờ session để không mất tiến độ
+from transformers import TrainerCallback
+class KaggleSessionCallback(TrainerCallback):
+    def __init__(self): self.t0 = time.time()
+    def on_save(self, args, state, control, **kw):
+        name = f"checkpoint-{state.global_step}"
+        api.upload_folder(repo_id=CKPT_REPO, folder_path=os.path.join(args.output_dir, name),
+                          path_in_repo=name)
+        if time.time() - self.t0 > BUDGET_H * 3600:
+            control.should_training_stop = True
+
+# Cell 5: train
+from datasets import load_dataset
+from transformers import TrainingArguments, Trainer, DataCollatorForLanguageModeling
+data = load_dataset(DATA_REPO)
+trainer = Trainer(
+    model=model,
+    train_dataset=data["train"],
+    eval_dataset={"vi": data["eval_vi"], "en": data["eval_en"]},  # en tăng mạnh = forgetting
+    data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
+    callbacks=[KaggleSessionCallback()],
+    args=TrainingArguments(
+        output_dir=OUT_DIR,
+        per_device_train_batch_size=4, gradient_accumulation_steps=8,
+        learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_ratio=0.1,
+        max_steps=MAX_STEPS,
+        bf16=True, optim="paged_adamw_8bit",
+        save_strategy="steps", save_steps=200, save_total_limit=2,
+        eval_strategy="steps", eval_steps=600,
+        logging_steps=20, report_to="none",
+    ),
+)
+trainer.train(resume_from_checkpoint=last_ckpt)   # None → train mới; có path → nối tiếp đúng step
+
+# Cell 6: CHỈ chạy khi state.global_step đã đạt MAX_STEPS —
+# merge LoRA vào base rồi push bản merged; Bước 2 (SFT) load thẳng repo này
+if trainer.state.global_step >= MAX_STEPS:
+    model.push_to_hub_merged(FINAL_REPO, tokenizer, save_method="merged_16bit")
+```
+
+**Cách vận hành mỗi session Kaggle:** mở Notebook B → Run All → notebook tự kéo checkpoint mới nhất, train tiếp, tự dừng và push trước khi hết giờ. Lặp lại cho đến khi log hiện `global_step >= 6000` và Cell 6 push bản merged. Không phải sửa bất kỳ dòng code nào giữa các session.
 
 **Vocab:** giữ nguyên tokenizer/vocab gốc của Qwen3 (không expand vocab tiếng Việt) — vocab Qwen3 (~151k, byte-level BPE, kế thừa từ dòng Qwen) đã cover tiếng Việt khá tốt, mở rộng vocab đòi hỏi train lại embedding mới từ đầu (tốn thêm compute, phức tạp resize + re-tie weights) mà lợi ích không chắc bù được chi phí trên quota Kaggle. Chỉ cân nhắc lại nếu sau khi CPT xong mà compression ratio (số token/câu tiếng Việt) vẫn kém rõ rệt.
 
-Output: `<user>/Qwen3-1.7B-vi-cpt` trên Hub.
+Output cuối: `<user>/Qwen3-1.7B-vi-cpt` (merged 16-bit) trên Hub — đây là base model cho Bước 2.
 
 ### 6.2. Bước 2 — SFT (QLoRA)
 
@@ -403,7 +508,7 @@ Cụ thể hóa Mục 3.4: sau khi có bản deploy đầu tiên (DPO v1) và ng
 
 | Bước | Compute | Ước tính session Kaggle (T4) | Checkpoint mỗi |
 |---|---|---|---|
-| 1. CPT | Kaggle (QLoRA r=64, không full-param) | 5-8 session (~9h/session) — nhiều hơn ước tính cho 0.5B vì model 1.7B lớn hơn ~3.4x | 100 steps |
+| 1. CPT | Kaggle (QLoRA r=64, không full-param) | 5-8 session (~9h/session) cho max_steps=6000 (~400M token) | 200 steps (xem 6.1 Notebook B) |
 | 2. SFT | Kaggle | 1 session | 100 steps (giống Mục 2, max_steps=400) |
 | 3. Reward Model | Kaggle (rủi ro cài DeepSpeed) → fallback Modal | 1-2 session | theo epoch (data preference thường nhỏ) |
 | 4a. DPO | Kaggle | 1-2 session | 50 steps |
