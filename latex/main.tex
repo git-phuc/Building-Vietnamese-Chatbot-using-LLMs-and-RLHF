@@ -1,133 +1,149 @@
 % ============================================================
-% RLHF on a Shoestring — report đồ án
-% Biên dịch: pdfLaTeX (Overleaf: Menu -> Compiler -> pdfLaTeX)
-% Nội dung đồng bộ với report.md ở repo root — sửa bên nào thì cập nhật bên kia.
-% Khi trường có template riêng: bê phần \section vào template, giữ references.bib.
+% RLHF on a Shoestring — project report (paper-style, two-column)
+% Compile: pdfLaTeX (Overleaf: Menu -> Compiler -> pdfLaTeX)
+% Layout: full-width title + abstract, two-column body (like NeurIPS/ACL preprints).
+% Content mirrors report.md (Vietnamese working notes) — keep the two in sync.
+% If your university requires its own template: move the \section bodies into it,
+% keep references.bib as-is.
 % ============================================================
-\documentclass[12pt,a4paper]{article}
+\documentclass[10pt,twocolumn]{article}
 
 \usepackage[utf8]{inputenc}
-\usepackage[T5]{fontenc}
-\usepackage[vietnamese]{babel}
-\usepackage[a4paper,margin=2.5cm]{geometry}
-\usepackage{booktabs}        % bảng đẹp: \toprule \midrule \bottomrule
-\usepackage{tabularx}        % bảng tự co giãn chiều rộng
+\usepackage[T5]{fontenc}         % T5 renders both English and Vietnamese diacritics
+\usepackage[english]{babel}
+\usepackage[a4paper,margin=2cm,columnsep=0.7cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
 \usepackage{graphicx}
 \usepackage{enumitem}
+\usepackage{microtype}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{xcolor}
 
-% Đánh dấu chỗ chờ số liệu thật — tìm \tbd trong file để biết còn thiếu gì
+% Placeholder for pending experimental numbers — search for \tbd to see what's missing
 \newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
 
-\title{\textbf{RLHF on a Shoestring:\\ Building a Vietnamese Chatbot from a Raw Base Model on Free-Tier GPUs}}
-\author{Đinh Phúc\thanks{\tbd{tên đầy đủ, MSSV, khoa/trường, GVHD}}}
+\title{\textbf{RLHF on a Shoestring: Building a Vietnamese Chatbot\\ from a Raw Base Model on Free-Tier GPUs}}
+\author{Dinh Phuc\thanks{\tbd{full name, student ID, department/university, advisor}}}
 \date{\today}
 
 \begin{document}
-\maketitle
 
-\begin{abstract}
-Đồ án xây dựng và vận hành trọn vẹn pipeline RLHF cho chatbot tiếng Việt, xuất phát từ một base model thô chưa qua instruction tuning (\texttt{Qwen/Qwen3-1.7B-Base}): Continual Pretraining (CPT) trên $\sim$400M token tiếng Việt, Supervised Fine-Tuning trên 12.7k hội thoại đa lượt, Reward Model, Direct Preference Optimization, đánh giá định lượng, và triển khai GGUF/Ollama. Toàn bộ huấn luyện chạy trên hạ tầng miễn phí (Kaggle T4 16GB, quota 30h/tuần) nhờ cơ chế checkpoint-resume qua HuggingFace Hub cho phép chia nhỏ mọi bước theo phiên. Đồ án trả lời bằng số liệu ba câu hỏi thiết kế: giá trị của CPT đối với tiếng Việt, mức độ thay thế của DPO đối với PPO, và hiệu quả của English replay trong việc chống catastrophic forgetting. \tbd{1--2 câu kết quả chính sau khi có số liệu từ E1--E3}
-\end{abstract}
+% Full-width title + abstract, then two-column body — standard paper layout
+\makeatletter
+\twocolumn[
+  \begin{@twocolumnfalse}
+    \maketitle
+    \begin{abstract}
+\noindent Most publicly deployed chatbots are produced by a multi-stage alignment pipeline --- continual pretraining, supervised fine-tuning, reward modeling, and preference optimization --- yet nearly all accessible accounts of this pipeline come from industrial labs operating hundreds of GPUs, leaving open the question of whether the full recipe can be executed, studied, and measured end-to-end under a student-scale compute budget. This report answers that question affirmatively for Vietnamese. Starting from a raw, non-instruction-tuned base model (\texttt{Qwen/Qwen3-1.7B-Base}), we build and operate the complete RLHF pipeline: continual pretraining (CPT) on roughly 400M tokens of quality-filtered Vietnamese text (Wikipedia and FineWeb2) with a 20\% English replay mixture to counter catastrophic forgetting; supervised fine-tuning on 12.7k multi-turn Vietnamese conversations with response-only loss masking; reward model training on human preference pairs; direct preference optimization (DPO) as the main alignment path with PPO as a multi-GPU ablation; quantitative evaluation; and deployment via GGUF quantization to an Ollama/Open WebUI chat interface. Every training stage runs on free-tier hardware --- a single Kaggle T4 (16\,GB, 30\,h/week quota, sessions capped at $\sim$9\,h) --- made possible by a checkpoint-resume mechanism that pushes full trainer state (adapter, optimizer, scheduler, RNG) to the HuggingFace Hub at every save and stops itself before the session budget expires, so that any stage can be split across an arbitrary number of sessions with exact continuation. Beyond the artifact itself, the project is designed around three single-variable ablations that budget-constrained practitioners actually face: (E1) whether CPT measurably improves a downstream Vietnamese assistant relative to fine-tuning the raw base directly, measured on VMLU and LLM-judged win-rate; (E2) how closely single-GPU DPO matches multi-GPU PPO in quality per GPU-hour on identical preference data; and (E3) whether a 20\% replay mixture prevents forgetting, tracked by parallel Vietnamese/English held-out losses over the full CPT run. \tbd{one or two sentences summarizing the main quantitative findings once E1--E3 complete}. All notebooks, datasets, and intermediate checkpoints are public or reproducible from public sources, and every result in this report can be regenerated from a free Kaggle account.
+    \end{abstract}
+    \vspace{1.5em}
+  \end{@twocolumnfalse}
+]
+\makeatother
 
-\section{Đặt vấn đề và động cơ}
+\section{Introduction}
 
-Đa số đồ án ``chatbot tiếng Việt'' cùng cấp đi theo lối: lấy một model đã instruction-tuned sẵn (Llama-Instruct, Qwen-Instruct), fine-tune nhẹ, rồi demo. Cách đó ra sản phẩm nhanh nhưng bỏ qua toàn bộ phần khó và đáng học nhất: \emph{model biết chat từ đâu ra?} Đồ án này chọn con đường ngược lại --- bắt đầu từ raw weights chỉ biết dự đoán token kế tiếp, tự tay xây từng tầng biến nó thành trợ lý tiếng Việt, đúng quy trình công nghiệp mà InstructGPT~\citep{ouyang2022instructgpt} định hình và Sailor2~\citep{dou2025sailor2} áp dụng cho các ngôn ngữ Đông Nam Á.
+Most student-level ``Vietnamese chatbot'' projects follow the same route: take an instruction-tuned model off the shelf (Llama-Instruct, Qwen-Instruct), fine-tune it lightly, and demo the result. That route ships a product quickly, but it skips the entire part worth studying: \emph{where does the ability to chat come from?} This project takes the opposite route --- starting from raw weights that can only predict the next token, we build every layer that turns them into a Vietnamese assistant, following the industrial recipe established by InstructGPT~\citep{ouyang2022instructgpt} and applied to South-East Asian languages by Sailor2~\citep{dou2025sailor2}.
 
-Ràng buộc tự đặt: \textbf{chỉ dùng compute miễn phí} (Kaggle T4 16GB, phiên tối đa $\sim$9 giờ, quota 30 giờ/tuần). Ràng buộc này không phải điểm yếu phải giấu mà là một phần của đề bài: mọi kỹ thuật trong đồ án đều phải sống được trong điều kiện phiên chạy bị cắt bất kỳ lúc nào.
+We impose one additional constraint on ourselves: \textbf{free compute only}. All training runs on a single Kaggle T4 (16\,GB VRAM, 30\,h/week quota, sessions capped at roughly nine hours). This constraint is not a weakness to hide but part of the problem statement: every technique in this project must survive an environment where the training session can be terminated at any time.
 
-\section{Đóng góp}
+\section{Contributions}
 
-Đóng góp của đồ án không nằm ở việc tạo ra một model vượt các LLM tiếng Việt hiện có --- điều bất khả thi ở quy mô tài nguyên sinh viên --- mà ở ba điểm:
+The contribution of this project is not a model that beats existing Vietnamese LLMs --- impossible at student-scale resources --- but the following three items:
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Pipeline hoàn chỉnh từ gốc.} Xây dựng và vận hành trọn vẹn chuỗi CPT $\to$ SFT $\to$ RM $\to$ DPO $\to$ Eval $\to$ Deploy từ base model thô, thay vì tinh chỉnh trên model đã instruction-tuned sẵn. Mỗi tầng có notebook độc lập, chạy được thật, kèm smoke test.
-  \item \textbf{Ba câu hỏi thiết kế được trả lời bằng số liệu} (Mục~\ref{sec:experiments}) --- những câu các công bố lớn thường bỏ ngỏ ở quy mô nhỏ: (i) continual pretraining có đáng chi phí với tiếng Việt không; (ii) DPO thay được PPO đến đâu, với chi phí bao nhiêu; (iii) English replay 20\% có thực sự chặn được catastrophic forgetting không.
-  \item \textbf{Quy trình khả tái lập trên hạ tầng miễn phí.} Cơ chế checkpoint-resume qua HuggingFace Hub (push nguyên checkpoint folder --- adapter, optimizer, scheduler, RNG --- mỗi \texttt{save\_steps}; tự dừng trước ngân sách giờ; phiên sau chạy lại là nối tiếp đúng step) biến mọi bước huấn luyện thành chuỗi phiên 8 giờ có thể lặp vô hạn. Sailor2 công bố cookbook cho người có hàng trăm GPU~\citep{dou2025sailor2}; đồ án này là cookbook cho người có một chiếc T4 mượn.
+  \item \textbf{A complete pipeline from scratch.} We build and operate the full chain CPT $\to$ SFT $\to$ RM $\to$ DPO $\to$ Eval $\to$ Deploy from a raw base model, rather than fine-tuning an already instruction-tuned checkpoint as most comparable projects do. Every stage ships as an independent, actually-runnable notebook with a smoke test.
+  \item \textbf{Three design questions answered with numbers} (Section~\ref{sec:experiments}) --- questions that large-lab publications rarely address at small scale: (i) is continual pretraining worth its cost for Vietnamese; (ii) how far does DPO substitute for PPO, and at what cost; (iii) does a 20\% English replay mixture actually stop catastrophic forgetting.
+  \item \textbf{A fully reproducible recipe on free infrastructure.} A checkpoint-resume mechanism over the HuggingFace Hub (pushing the entire checkpoint folder --- adapter, optimizer, scheduler, RNG state --- at every \texttt{save\_steps}; stopping itself before the session budget; the next session resumes at the exact step by re-running the notebook) turns every training stage into an indefinitely repeatable chain of 8-hour sessions. Sailor2 published a cookbook for teams with hundreds of GPUs~\citep{dou2025sailor2}; this project is the cookbook for someone with one borrowed T4.
 \end{enumerate}
 
-Sailor2 được dùng làm \emph{mốc đối chiếu} trong đánh giá, không phải điểm xuất phát.
+Sailor2 serves as a \emph{reference point} in evaluation, not as a starting checkpoint.
 
-\section{Công trình liên quan}
+\section{Related Work}
 
-\paragraph{Vai trò tương đối của pretraining và alignment.} LIMA~\citep{zhou2023lima} chỉ ra rằng phần lớn kiến thức và năng lực ngôn ngữ được học trong pretraining, còn alignment chủ yếu dạy \emph{format và style} (superficial alignment hypothesis); URIAL~\citep{lin2023urial} củng cố định lượng ở mức token. Đây là cơ sở lý thuyết cho việc giữ bước CPT thay vì trông cậy vào dữ liệu hội thoại ở các bước sau. Về kỹ thuật CPT, \citet{ibrahim2024simple} chứng minh LR re-warming/re-decaying kết hợp replay dữ liệu cũ đủ đạt chất lượng tương đương train lại từ đầu; \citet{gururangan2020dont} là công trình kinh điển về domain-adaptive pretraining; \citet{luo2023forgetting} đo đạc catastrophic forgetting và cho thấy model càng nhỏ quên càng nặng.
+\paragraph{The relative roles of pretraining and alignment.}
+LIMA~\citep{zhou2023lima} showed that most knowledge and linguistic competence is acquired during pretraining, while alignment mainly teaches \emph{format and style} (the superficial alignment hypothesis); URIAL~\citep{lin2023urial} confirmed this quantitatively at the token level. This is the theoretical basis for keeping the CPT stage rather than relying on conversational data downstream. On CPT technique, \citet{ibrahim2024simple} showed that learning-rate re-warming/re-decaying combined with replay of old data matches full retraining; \citet{gururangan2020dont} is the classic result on domain-adaptive pretraining; \citet{luo2023forgetting} measured catastrophic forgetting and found smaller models forget more --- directly relevant at our 1.7B scale.
 
-\paragraph{Công thức chuẩn cho ngôn ngữ bản địa.} Các model tiếng Việt và Đông Nam Á mạnh đều CPT trên corpus bản địa trước khi alignment, không có ngoại lệ: Sailor~\citep{dou2024sailor} và Sailor2~\citep{dou2025sailor2} (CPT 400B token SEA + 100B replay từ Qwen2.5), SeaLLMs~\citep{nguyen2023seallms}, VinaLLaMA~\citep{nguyen2023vinallama} (CPT 800B token trên Llama-2), PhoGPT~\citep{nguyen2023phogpt} (pretrain từ đầu 102B token). Base model của đồ án là Qwen3~\citep{qwen3report}.
+\paragraph{The standard recipe for regional languages.}
+Every strong Vietnamese or South-East Asian model applies CPT on native-language corpora before alignment, without exception: Sailor~\citep{dou2024sailor} and Sailor2~\citep{dou2025sailor2} (400B SEA tokens + 100B replay from Qwen2.5), SeaLLMs~\citep{nguyen2023seallms}, VinaLLaMA~\citep{nguyen2023vinallama} (800B tokens of CPT on Llama-2), and PhoGPT~\citep{nguyen2023phogpt} (pretrained from scratch on 102B tokens). Our base model is Qwen3~\citep{qwen3report}.
 
-\paragraph{RLHF và các phương án thay thế.} Chuỗi SFT $\to$ RM $\to$ PPO do \citet{christiano2017preferences,stiennon2020summarize,ouyang2022instructgpt} định hình, với phân tích thực nghiệm sâu về reward model trong \citet{bai2022hh}; PPO~\citep{schulman2017ppo} là thuật toán RL nền; OpenRLHF~\citep{hu2024openrlhf} là framework dùng cho bước RM và ablation PPO. DPO~\citep{rafailov2023dpo} rút gọn RLHF về một classification loss chỉ cần policy và reference --- lý do nó là con đường chính của đồ án trên single-GPU.
+\paragraph{RLHF and its lighter substitutes.}
+The SFT $\to$ RM $\to$ PPO chain was established by \citet{christiano2017preferences,stiennon2020summarize,ouyang2022instructgpt}, with the deepest empirical treatment of reward models in \citet{bai2022hh}; PPO~\citep{schulman2017ppo} is the underlying RL algorithm, and OpenRLHF~\citep{hu2024openrlhf} is the framework we use for the RM stage and the PPO ablation. DPO~\citep{rafailov2023dpo} collapses RLHF into a classification loss requiring only a policy and a reference model --- the reason it is our main path on a single GPU.
 
-\paragraph{Điều kiện tồn tại trên T4.} LoRA~\citep{hu2021lora}, QLoRA~\citep{dettmers2023qlora} (NF4 4-bit + adapter fp16 + paged optimizer) và rsLoRA~\citep{kalajdzievski2023rslora} (scale $\alpha/\sqrt{r}$ cho rank cao) là bộ ba cho phép train 1.7B trên 16GB VRAM. Corpus tiếng Việt lấy từ FineWeb2~\citep{penedo2025fineweb2}, English replay từ FineWeb-Edu~\citep{penedo2024fineweb}.
+\paragraph{What makes a T4 sufficient.}
+LoRA~\citep{hu2021lora}, QLoRA~\citep{dettmers2023qlora} (NF4 4-bit base + fp16 adapters + paged optimizers), and rsLoRA~\citep{kalajdzievski2023rslora} ($\alpha/\sqrt{r}$ scaling for high ranks) are the trio that fits 1.7B-parameter training into 16\,GB of VRAM. The Vietnamese corpus comes from FineWeb2~\citep{penedo2025fineweb2}; the English replay from FineWeb-Edu~\citep{penedo2024fineweb}.
 
 \section{Pipeline}
 \label{sec:pipeline}
 
-Thiết kế chi tiết từng bước nằm trong spec của repo (Mục 6); notebook chạy được tại \texttt{notebooks/}. Bảng~\ref{tab:pipeline} tóm tắt.
+Detailed per-stage design lives in the repository spec (Section 6); runnable notebooks in \texttt{notebooks/}. Table~\ref{tab:pipeline} summarizes.
 
-\begin{table}[ht]
+\begin{table*}[t]
 \centering\small
-\caption{Pipeline 6 bước, tất cả xuất phát từ \texttt{Qwen3-1.7B-Base} thô.}
+\caption{The six-stage pipeline, all starting from raw \texttt{Qwen3-1.7B-Base}.}
 \label{tab:pipeline}
 \begin{tabularx}{\textwidth}{@{}lXl@{}}
 \toprule
-\textbf{Bước} & \textbf{Nội dung} & \textbf{Output (HF Hub)} \\
+\textbf{Stage} & \textbf{Content} & \textbf{Output (HF Hub)} \\
 \midrule
-1. CPT & QLoRA $r{=}64$, $\sim$400M token (Wikipedia-vi + FineWeb2 \texttt{vie\_Latn} + 20\% FineWeb-Edu replay), 6000 step & \texttt{Qwen3-1.7B-vi-cpt} \\
-2. SFT & QLoRA $r{=}16$, 12.7k hội thoại đa lượt, ChatML, loss chỉ trên lượt assistant & \texttt{Qwen3-1.7B-vi-sft} \\
-3. RM & OpenRLHF \texttt{train\_rm}, preference data Vi-Alpaca & \texttt{Qwen3-1.7B-vi-rm} \\
-4. DPO & TRL \texttt{DPOTrainer} (chính); PPO trên Modal (ablation) & \texttt{Qwen3-1.7B-vi-dpo} \\
-5. Eval & VMLU + LLM-judge win-rate + RM score trên held-out & --- \\
+1. CPT & QLoRA $r{=}64$, $\sim$400M tokens (Wikipedia-vi + FineWeb2 \texttt{vie\_Latn} + 20\% FineWeb-Edu replay), 6000 steps & \texttt{Qwen3-1.7B-vi-cpt} \\
+2. SFT & QLoRA $r{=}16$, 12.7k multi-turn conversations, ChatML template, loss on assistant turns only & \texttt{Qwen3-1.7B-vi-sft} \\
+3. RM & OpenRLHF \texttt{train\_rm} on Vi-Alpaca preference pairs & \texttt{Qwen3-1.7B-vi-rm} \\
+4. DPO & TRL \texttt{DPOTrainer} (main path); PPO on Modal (ablation) & \texttt{Qwen3-1.7B-vi-dpo} \\
+5. Eval & VMLU + LLM-judge win-rate + RM score on held-out split & --- \\
 6. Deploy & GGUF $\to$ Ollama + Open WebUI & \texttt{...-dpo-gguf} \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
-\paragraph{Vì sao Qwen3 chứ không phải Llama.} Tokenizer Qwen ($\sim$152k vocab, train đa ngôn ngữ) cho fertility tiếng Việt thấp gần bằng tiếng Anh, trong khi vocab 32k của Llama-2 băm vụn âm tiết có dấu --- và tokenizer là thứ CPT không sửa được nếu không mở rộng vocab như SeaLLMs~\citep{nguyen2023seallms}. Thứ hai, với ngân sách token cố định, xuất phát cao cộng liều bồi nhẹ đi xa hơn xuất phát thấp cộng liều khổng lồ: VinaLLaMA cần 800B token để đưa Llama-2 lên chuẩn tiếng Việt~\citep{nguyen2023vinallama}, gấp 2000 lần ngân sách của đồ án.
+\paragraph{Why Qwen3 rather than Llama.}
+Two reasons. First, the tokenizer: Qwen's $\sim$152k-entry vocabulary, trained on multilingual data, gives Vietnamese a fertility (tokens per word) close to English, whereas Llama-2's 32k vocabulary shatters diacritic-bearing syllables into byte fragments --- and the tokenizer is the one thing CPT cannot fix without vocabulary extension as in SeaLLMs~\citep{nguyen2023seallms}. Second, budget arithmetic: with a fixed token budget, a high starting point plus a light top-up travels further than a low starting point plus a massive dose --- VinaLLaMA needed 800B tokens to bring Llama-2 up to standard in Vietnamese~\citep{nguyen2023vinallama}, roughly 2000$\times$ our entire budget.
 
-\section{Thiết kế thực nghiệm}
+\section{Experimental Design}
 \label{sec:experiments}
 
-Ba thí nghiệm, mỗi thí nghiệm thay đổi đúng một biến (Bảng~\ref{tab:ablations}). Quy tắc đánh giá: held-out split chưa từng dùng để train RM/DPO/PPO; LLM-judge chấm hai chiều (đảo vị trí câu trả lời) để khử position bias~\citep{zheng2023judge}; VMLU~\citep{vmlu2025} đo kiến thức tiếng Việt; Sailor2-1B làm mốc đối chiếu tham khảo.
+Three experiments, each varying exactly one factor (Table~\ref{tab:ablations}). Evaluation rules: the held-out split is never used to train RM/DPO/PPO; the LLM judge scores each pair twice with answer positions swapped to cancel position bias~\citep{zheng2023judge}; VMLU~\citep{vmlu2025} measures Vietnamese knowledge; Sailor2-1B serves as an external reference point.
 
-\begin{table}[ht]
+\begin{table*}[t]
 \centering\small
-\caption{Ba câu hỏi ablation và thước đo tương ứng.}
+\caption{The three ablation questions and their metrics.}
 \label{tab:ablations}
 \begin{tabularx}{\textwidth}{@{}lXXl@{}}
 \toprule
-\# & \textbf{Câu hỏi} & \textbf{Điều kiện so sánh} & \textbf{Thước đo} \\
+\# & \textbf{Question} & \textbf{Comparison} & \textbf{Metrics} \\
 \midrule
-E1 & CPT có đáng không? & SFT-từ-CPT vs SFT-từ-base-thô & VMLU, win-rate \\
-E2 & DPO thay được PPO? & DPO (T4) vs PPO (Modal), cùng preference data & win-rate, RM score, GPU-hour \\
-E3 & Replay chống forgetting? & \texttt{eval\_vi\_loss} / \texttt{eval\_en\_loss} suốt 6000 step CPT & loss curve \\
+E1 & Is CPT worth it? & SFT-from-CPT vs.\ SFT-from-raw-base, all else equal & VMLU, win-rate \\
+E2 & Does DPO substitute for PPO? & DPO (single T4) vs.\ PPO (Modal, multi-GPU), same preference data & win-rate, RM score, GPU-hours \\
+E3 & Does replay stop forgetting? & \texttt{eval\_vi\_loss} vs.\ \texttt{eval\_en\_loss} across all 6000 CPT steps & loss curves \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{table*}
 
-\section{Kết quả}
+\section{Results}
 \label{sec:results}
 
-\tbd{Điền dần khi các bước hoàn thành --- mỗi bước xong dán bảng số và một đoạn nhận xét. Nguồn số liệu: \texttt{trainer\_state.json} trong các checkpoint trên Hub (CPT/SFT), script eval của bước 5.}
+\tbd{Fill in as stages complete --- one table of numbers plus one paragraph of commentary per stage. Data sources: \texttt{trainer\_state.json} inside the Hub checkpoints (CPT/SFT logs), and the stage-5 evaluation scripts.}
 
-\subsection{E1 --- Giá trị của CPT} \tbd{bảng VMLU + win-rate}
-\subsection{E2 --- DPO vs PPO} \tbd{bảng chất lượng + GPU-hour}
-\subsection{E3 --- Catastrophic forgetting} \tbd{hình loss curve vi/en từ log CPT}
+\subsection{E1 --- The value of CPT} \tbd{VMLU + win-rate table}
+\subsection{E2 --- DPO vs.\ PPO} \tbd{quality + GPU-hour table}
+\subsection{E3 --- Catastrophic forgetting} \tbd{vi/en loss-curve figure from CPT logs}
 
-\section{Thảo luận phản biện}
+\section{Anticipated Objections}
 
 \begin{description}[leftmargin=0pt,style=nextline]
-  \item[``Của em hơn gì những model đang có?''] Không cạnh tranh chất lượng với model train bằng trăm GPU --- đồ án tái tạo \emph{cách các model đó được tạo ra} ở quy mô sinh viên, và đo đạc từng tầng. Phần ``hơn'' nằm ở Bảng~\ref{tab:ablations}: những con số mà việc dùng model có sẵn không bao giờ trả lời được.
-  \item[``Sao không dùng luôn Sailor2?''] Dùng model sẵn thì không còn tầng nào để đo --- không trả lời được câu hỏi nghiên cứu nào. Sailor2 vẫn có mặt trong đồ án, đúng vai của nó: mốc đối chiếu ở phần eval.
-  \item[``Model thua ChatGPT thì làm để làm gì?''] Đúng, và mục tiêu chưa bao giờ là thắng --- mục tiêu là kiểm soát từng tầng của quy trình. ChatGPT không cho xem đường loss của reward model.
-  \item[``Sao chọn 1.7B nhỏ thế?''] Câu hỏi của đồ án là câu hỏi \emph{phương pháp}, không phải \emph{quy mô} --- mọi kết luận ablation đo được ở 1.7B. Scale lên là vấn đề tiền, không phải vấn đề khoa học.
-  \item[``CPT có ích thật không hay làm theo trend?''] Không khẳng định chay --- E1 được thiết kế để trả lời chính câu này bằng số. Nếu delta nhỏ, đó cũng là một phát hiện trung thực được ghi nhận.
-  \item[``Chạy Kaggle free thì nghiêm túc được không?''] Ràng buộc compute là một phần đề bài: mọi bước train đều checkpoint-resume qua Hub, tái lập 100\% từ notebook công khai. Khả tái lập là thứ nhiều công bố lớn còn thiếu.
+  \item[``What does yours add over existing models?''] We do not compete on quality with models trained on hundreds of GPUs --- we reproduce \emph{how those models are made}, at student scale, measuring every layer. The added value is Table~\ref{tab:ablations}: numbers that using an off-the-shelf model can never produce.
+  \item[``Why not just use Sailor2?''] With a ready-made model there is no layer left to measure --- no research question can be answered. Sailor2 does appear in this project, in its proper role: as a reference point in evaluation.
+  \item[``Your model loses to ChatGPT --- so what is it for?''] Correct, and winning was never the goal --- controlling every layer of the process is. ChatGPT does not show you its reward model's loss curve.
+  \item[``Why such a small model (1.7B)?''] Because our questions are questions of \emph{method}, not \emph{scale} --- every ablation conclusion is measurable at 1.7B. Scaling up is a question of money, not of science.
+  \item[``Is your CPT actually useful, or just following the trend?''] We make no bare claim --- E1 exists precisely to answer this with numbers. If the delta turns out small, that too is an honest, reported finding.
+  \item[``Can work on free Kaggle be taken seriously?''] The compute constraint is part of the problem statement: every training stage checkpoints and resumes through the Hub and is 100\% reproducible from public notebooks. Reproducibility is something many large publications still lack.
 \end{description}
 
-\section{Reproducibility statement}
+\section{Reproducibility Statement}
 
-Toàn bộ notebook chạy trực tiếp trên Kaggle T4 free tier; dataset và checkpoint trung gian nằm trên HuggingFace Hub theo quy ước \texttt{<user>/Qwen3-1.7B-vi-\{cpt,sft,rm,dpo\}}; mọi seed cố định (42); log huấn luyện đầy đủ trong \texttt{trainer\_state.json} của từng checkpoint. Một người khác với tài khoản Kaggle và HF token có thể tái tạo từng bước bằng Run All.
+All notebooks run directly on Kaggle's free T4 tier; datasets and intermediate checkpoints live on the HuggingFace Hub under the naming convention \texttt{<user>/Qwen3-1.7B-vi-\{cpt,sft,rm,dpo\}}; all seeds are fixed (42); complete training logs are preserved in each checkpoint's \texttt{trainer\_state.json}. Anyone with a Kaggle account and an HF token can reproduce every stage by re-running the notebooks.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
