@@ -238,15 +238,22 @@ from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
 
 wiki_vi = load_dataset("wikimedia/wikipedia", "20231101.vi", split="train")  # ~1.3M bài, tải hết
 
-web_vi = load_dataset("HuggingFaceFW/fineweb-2", "vie_Latn", split="train", streaming=True)
-web_vi = Dataset.from_list([                         # stream, chỉ giữ cột text, lấy 1.5M đoạn
-    {"text": r["text"]} for _, r in zip(range(1_500_000),
-        (r for r in web_vi if len(r["text"]) > 200))
-])
+# Stream thẳng ra đĩa bằng from_generator — KHÔNG Dataset.from_list (gom list Python
+# trong RAM → kernel died trên Kaggle, đã vấp). Số doc: vừa đủ ~400M token, không lấy thừa.
+def stream_texts(repo, config, n, min_len=200):
+    def gen():
+        ds = load_dataset(repo, config, split="train", streaming=True)
+        k = 0
+        for r in ds:
+            if len(r["text"]) > min_len:
+                yield {"text": r["text"]}
+                k += 1
+                if k >= n:
+                    break
+    return Dataset.from_generator(gen)
 
-fineweb_en = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT",
-                          split="train", streaming=True)
-fineweb_en = Dataset.from_list([{"text": r["text"]} for _, r in zip(range(150_000), fineweb_en)])
+web_vi     = stream_texts("HuggingFaceFW/fineweb-2", "vie_Latn", 250_000)   # ~250-350M token
+fineweb_en = stream_texts("HuggingFaceFW/fineweb-edu", "sample-10BT", 100_000)  # ~100M token
 
 # Cell 3: tokenize + pack thành block 2048 token (chuẩn CPT: nối tài liệu bằng EOS rồi cắt khúc)
 from transformers import AutoTokenizer
