@@ -219,7 +219,7 @@ Mỗi checkpoint phải chứa đủ để resume đúng trạng thái (không c
 | English replay | `HuggingFaceFW/fineweb-edu` (`sample-10BT`, stream) — trộn ~20% để giảm catastrophic forgetting |
 | Framework | **QLoRA rank lớn (r=64) trên base 4-bit**, KHÔNG full-parameter — ở 1.7B, full-param + Adam optimizer states (fp32, 2x params) đã vượt quá 16GB VRAM của T4 trước cả khi tính activations. LoRA r=64 (lớn hơn r=16 của SFT vì CPT cần cập nhật nhiều "kiến thức" hơn) là mức khả thi duy nhất trên 1 GPU T4 |
 | Learning rate | ~5-10 lần thấp hơn SFT (1.5e-5), warmup 10% |
-| Khối lượng train | **`max_steps=6000`** (không dùng epoch — data là mix nhiều nguồn nên "epoch" không có nghĩa). Effective batch 32 seq × 2048 token ≈ 65k token/step → ~400M token, vừa khớp 5-8 session Kaggle |
+| Khối lượng train | **`max_steps=3000`** (không dùng epoch — data là mix nhiều nguồn nên "epoch" không có nghĩa). Unsloth trên Kaggle chạy effective batch 64 seq × 2048 token ≈ 131k token/step → ~400M token; đo thực tế ~95 s/step trên T4 → ~80h GPU ≈ 10 session |
 | Hub repos (3 cái, đừng nhầm) | `<user>/vi-cpt-corpus-2048` (data đã pack, private) · `<user>/Qwen3-1.7B-vi-cpt-ckpt` (checkpoint resume, private) · `<user>/Qwen3-1.7B-vi-cpt` (bản merged cuối cùng — input cho Bước 2) |
 
 **Tổ chức thành 2 notebook Kaggle riêng biệt** — tách data prep khỏi train để mỗi session train không phải tokenize lại từ đầu:
@@ -299,7 +299,7 @@ login(UserSecretsClient().get_secret("HF_TOKEN"))
 DATA_REPO  = "<user>/vi-cpt-corpus-2048"
 CKPT_REPO  = "<user>/Qwen3-1.7B-vi-cpt-ckpt"    # checkpoint resume (adapter+optimizer+scheduler)
 FINAL_REPO = "<user>/Qwen3-1.7B-vi-cpt"         # CHỈ push khi đã đạt max_steps
-OUT_DIR, MAX_STEPS, BUDGET_H = "./cpt-checkpoints", 6000, 8.0
+OUT_DIR, MAX_STEPS, BUDGET_H = "./cpt-checkpoints", 3000, 8.0
 
 # Cell 2: kéo checkpoint mới nhất từ Hub về (None nếu là session đầu tiên)
 api = HfApi()
@@ -349,7 +349,7 @@ trainer = Trainer(
     args=TrainingArguments(
         output_dir=OUT_DIR,
         per_device_train_batch_size=4, gradient_accumulation_steps=8,
-        learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_steps=600,  # 10% của 6000 step
+        learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_steps=300,  # 10% của 3000 step
         max_steps=MAX_STEPS,
         bf16=is_bfloat16_supported(), fp16=not is_bfloat16_supported(),  # T4 không có bf16
         optim="paged_adamw_8bit",
@@ -367,7 +367,7 @@ if trainer.state.global_step >= MAX_STEPS:
     model.push_to_hub_merged(FINAL_REPO, tokenizer, save_method="merged_16bit")
 ```
 
-**Cách vận hành mỗi session Kaggle:** mở Notebook B → Run All → notebook tự kéo checkpoint mới nhất, train tiếp, tự dừng và push trước khi hết giờ. Lặp lại cho đến khi log hiện `global_step >= 6000` và Cell 6 push bản merged. Không phải sửa bất kỳ dòng code nào giữa các session.
+**Cách vận hành mỗi session Kaggle:** mở Notebook B → Run All → notebook tự kéo checkpoint mới nhất, train tiếp, tự dừng và push trước khi hết giờ. Lặp lại cho đến khi log hiện `global_step >= 3000` và Cell 6 push bản merged. Không phải sửa bất kỳ dòng code nào giữa các session.
 
 **Vocab:** giữ nguyên tokenizer/vocab gốc của Qwen3 (không expand vocab tiếng Việt) — vocab Qwen3 (~151k, byte-level BPE, kế thừa từ dòng Qwen) đã cover tiếng Việt khá tốt, mở rộng vocab đòi hỏi train lại embedding mới từ đầu (tốn thêm compute, phức tạp resize + re-tie weights) mà lợi ích không chắc bù được chi phí trên quota Kaggle. Chỉ cân nhắc lại nếu sau khi CPT xong mà compression ratio (số token/câu tiếng Việt) vẫn kém rõ rệt.
 
@@ -531,7 +531,7 @@ Cụ thể hóa Mục 3.4: sau khi có bản deploy đầu tiên (DPO v1) và ng
 
 | Bước | Compute | Ước tính session Kaggle (T4) | Checkpoint mỗi |
 |---|---|---|---|
-| 1. CPT | Kaggle (QLoRA r=64, không full-param) | 5-8 session (~9h/session) cho max_steps=6000 (~400M token) | 200 steps (xem 6.1 Notebook B) |
+| 1. CPT | Kaggle (QLoRA r=64, không full-param) | ~10 session (8h/session) cho max_steps=3000 (~400M token, đo 95 s/step) | 200 steps (xem 6.1 Notebook B) |
 | 2. SFT | Kaggle | 1 session | 100 steps (giống Mục 2, max_steps=400) |
 | 3. Reward Model | Kaggle (rủi ro cài DeepSpeed) → fallback Modal | 1-2 session | theo epoch (data preference thường nhỏ) |
 | 4a. DPO | Kaggle | 1-2 session | 50 steps |

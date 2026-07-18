@@ -44,7 +44,7 @@ Thiết kế chi tiết từng bước tại spec chính (`docs/spec.md`, Mục 
 
 | Bước | Nội dung | Notebook | Output (HF Hub) |
 |---|---|---|---|
-| 1. CPT | QLoRA r=64, ~400M token (wiki-vi + fineweb-2 vie_Latn + 20% fineweb-edu replay), 6000 step | `CPT-Step-A-Prepare-Qwen3-1.7B` + `CPT-Step-B-Train-Qwen3-1.7B` | `Qwen3-1.7B-vi-cpt` |
+| 1. CPT | QLoRA r=64, ~400M token (wiki-vi + fineweb-2 vie_Latn + 20% fineweb-edu replay), 3000 step (batch hiệu dụng 64) | `CPT-Step-A-Prepare-Qwen3-1.7B` + `CPT-Step-B-Train-Qwen3-1.7B` | `Qwen3-1.7B-vi-cpt` |
 | 2. SFT | QLoRA r=16, 12.7k hội thoại multi-turn, ChatML, loss chỉ trên lượt assistant | `SFT-Train-Qwen3-1.7B` | `Qwen3-1.7B-vi-sft` |
 | 3. RM | OpenRLHF `train_rm`, preference data Vi-Alpaca | ⬜ | `Qwen3-1.7B-vi-rm` |
 | 4. DPO | TRL `DPOTrainer` (chính); PPO trên Modal (ablation) | ⬜ | `Qwen3-1.7B-vi-dpo` |
@@ -61,7 +61,7 @@ Ba thí nghiệm, mỗi cái một biến duy nhất:
 |---|---|---|---|---|
 | E1 | CPT có đáng không? | SFT-từ-CPT vs SFT-từ-base-thô (mọi thứ khác giữ nguyên) | VMLU, LLM-judge win-rate | ⬜ |
 | E2 | DPO thay được PPO? | DPO (T4) vs PPO (Modal multi-GPU), cùng preference data | Win-rate, RM score, GPU-hour | ⬜ |
-| E3 | Replay chống forgetting? | Đường `eval_vi_loss` / `eval_en_loss` trong suốt 6000 step CPT | Loss curve từ `trainer_state.json` | ⬜ |
+| E3 | Replay chống forgetting? | Đường `eval_vi_loss` / `eval_en_loss` trong suốt 3000 step CPT | Loss curve từ `trainer_state.json` | ⬜ |
 
 Quy tắc đánh giá: held-out split chưa từng dùng train RM/DPO/PPO; LLM-judge chấm 2 chiều (đảo vị trí) để khử position bias (Zheng et al., 2023); Sailor2-1B làm mốc đối chiếu tham khảo.
 

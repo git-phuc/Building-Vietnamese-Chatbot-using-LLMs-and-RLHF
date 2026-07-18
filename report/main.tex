@@ -88,7 +88,7 @@ Detailed per-stage design lives in the repository spec (Section 6); runnable not
 \toprule
 \textbf{Stage} & \textbf{Content} & \textbf{Output (HF Hub)} \\
 \midrule
-1. CPT & QLoRA $r{=}64$, $\sim$400M tokens (Wikipedia-vi + FineWeb2 \texttt{vie\_Latn} + 20\% FineWeb-Edu replay), 6000 steps & \texttt{Qwen3-1.7B-vi-cpt} \\
+1. CPT & QLoRA $r{=}64$, $\sim$400M tokens (Wikipedia-vi + FineWeb2 \texttt{vie\_Latn} + 20\% FineWeb-Edu replay), 3000 steps & \texttt{Qwen3-1.7B-vi-cpt} \\
 2. SFT & QLoRA $r{=}16$, 12.7k multi-turn conversations, ChatML template, loss on assistant turns only & \texttt{Qwen3-1.7B-vi-sft} \\
 3. RM & OpenRLHF \texttt{train\_rm} on Vi-Alpaca preference pairs & \texttt{Qwen3-1.7B-vi-rm} \\
 4. DPO & TRL \texttt{DPOTrainer} (main path); PPO on Modal (ablation) & \texttt{Qwen3-1.7B-vi-dpo} \\
@@ -116,7 +116,7 @@ Three experiments, each varying exactly one factor (Table~\ref{tab:ablations}). 
 \midrule
 E1 & Is CPT worth it? & SFT-from-CPT vs.\ SFT-from-raw-base, all else equal & VMLU, win-rate \\
 E2 & Does DPO substitute for PPO? & DPO (single T4) vs.\ PPO (Modal, multi-GPU), same preference data & win-rate, RM score, GPU-hours \\
-E3 & Does replay stop forgetting? & \texttt{eval\_vi\_loss} vs.\ \texttt{eval\_en\_loss} across all 6000 CPT steps & loss curves \\
+E3 & Does replay stop forgetting? & \texttt{eval\_vi\_loss} vs.\ \texttt{eval\_en\_loss} across all 3000 CPT steps & loss curves \\
 \bottomrule
 \end{tabularx}
 \end{table*}
