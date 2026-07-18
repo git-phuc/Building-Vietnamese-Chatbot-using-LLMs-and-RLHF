@@ -351,7 +351,8 @@ trainer = Trainer(
         per_device_train_batch_size=4, gradient_accumulation_steps=8,
         learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_ratio=0.1,
         max_steps=MAX_STEPS,
-        bf16=True, optim="paged_adamw_8bit",
+        bf16=is_bfloat16_supported(), fp16=not is_bfloat16_supported(),  # T4 không có bf16
+        optim="paged_adamw_8bit",
         save_strategy="steps", save_steps=200, save_total_limit=2,
         eval_strategy="steps", eval_steps=600,
         logging_steps=20, report_to="none",
@@ -450,7 +451,7 @@ dpo_config = DPOConfig(
     max_steps=400,
     save_strategy="steps",
     save_steps=50,
-    bf16=True,
+    bf16=is_bfloat16_supported(), fp16=not is_bfloat16_supported(),  # T4 không có bf16
     push_to_hub=True,
     hub_model_id="<user>/Qwen3-1.7B-vi-dpo",
 )
