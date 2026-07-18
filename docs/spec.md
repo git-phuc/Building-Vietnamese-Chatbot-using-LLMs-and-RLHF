@@ -349,7 +349,7 @@ trainer = Trainer(
     args=TrainingArguments(
         output_dir=OUT_DIR,
         per_device_train_batch_size=4, gradient_accumulation_steps=8,
-        learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_ratio=0.1,
+        learning_rate=1.5e-5, lr_scheduler_type="cosine", warmup_steps=600,  # 10% của 6000 step
         max_steps=MAX_STEPS,
         bf16=is_bfloat16_supported(), fp16=not is_bfloat16_supported(),  # T4 không có bf16
         optim="paged_adamw_8bit",
