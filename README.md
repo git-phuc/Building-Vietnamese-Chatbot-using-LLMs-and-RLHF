@@ -6,12 +6,12 @@
 
 | File / Mục | Vai trò |
 |---|---|
-| `Building Vietnamese Chatbot using LLMs and RLHF.md` — **Mục 6** | **Pipeline đang thực thi** — sơ đồ tổng quan ở 6.0, chi tiết + code từng bước ở 6.1–6.9 |
+| `docs/spec.md` — **Mục 6** | **Pipeline đang thực thi** (spec chính) — sơ đồ tổng quan ở 6.0, chi tiết + code từng bước ở 6.1–6.9 |
 | — Mục 2, 3, 4 | Tài liệu tham khảo (baseline slide Llama, ý tưởng cải tiến, kho dataset) — KHÔNG phải việc đang làm |
 | `notebooks/` | Notebook Kaggle chạy được thật, khớp 1-1 với §6.x tương ứng |
 | `research/` | Paper nền tảng theo từng topic (CPT, SFT, RLHF, DPO, QLoRA, LLM Việt/SEA, eval) — mỗi file một topic, map vào §6.x |
-| `report.md` | **Report chính thức** — *"RLHF on a Shoestring"*: abstract, đóng góp, thiết kế thực nghiệm, Q&A phản biện; điền số liệu dần theo tiến độ |
-| `latex/` | Bản LaTeX của report (`main.tex` + `references.bib` khớp `research/`) — compile bằng pdfLaTeX trên Overleaf; giữ đồng bộ với `report.md` |
+| `report/` | **Report chính thức** — *"RLHF on a Shoestring"*: `report.md` (bản nháp tiếng Việt) + `main.tex`/`references.bib` (bản nộp tiếng Anh, compile pdfLaTeX trên Overleaf) — sửa bên nào thì đồng bộ bên kia |
+| `docs/` | Tài liệu: `spec.md` (spec chính, xem dòng đầu bảng) + slide PDF của môn học |
 | `README.md` (file này) | Bảng trạng thái: đang ở bước nào, xong gì rồi |
 | `CLAUDE.md` | Hướng dẫn cho coding agent (Claude Code) |
 
