@@ -11,5 +11,6 @@ Mỗi file = một topic, gồm: mô tả topic, vì sao liên quan đến đồ
 | [05-peft-qlora.md](05-peft-qlora.md) | LoRA / QLoRA / rsLoRA — train 1.7B trên T4 16GB | Mọi bước train trên Kaggle |
 | [06-vietnamese-sea-llms.md](06-vietnamese-sea-llms.md) | LLM tiếng Việt & Đông Nam Á (Sailor2, SeaLLMs, VinaLLaMA, PhoGPT) | Toàn pipeline — "người đi trước" đã làm đúng công thức này |
 | [07-evaluation.md](07-evaluation.md) | Đánh giá: VMLU, LLM-as-a-judge | §6.5 — Evaluation |
+| [08-claude-code-plugins-tools.md](08-claude-code-plugins-tools.md) | *(Tooling, không phải paper)* Plugin Claude Code & công cụ tăng hiệu suất coding | Workflow làm đồ án nói chung |
 
 > Quy ước: mỗi paper ghi dạng `Tên (tác giả chính, năm) — arXiv link`. Chỉ liệt kê paper thực sự phục vụ quyết định thiết kế trong spec, không sưu tầm tràn lan.

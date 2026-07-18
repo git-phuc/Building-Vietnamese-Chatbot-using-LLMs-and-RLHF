@@ -7,7 +7,7 @@ Continual pretraining = tiếp tục pretrain một model đã có sẵn (next-t
 1. **Catastrophic forgetting** — học tiếng Việt nhưng quên tiếng Anh/năng lực reasoning gốc. Thuốc chữa tiêu chuẩn: **replay** (trộn lại một phần data giống phân phối pretrain gốc — pipeline của ta dùng ~20% fineweb-edu tiếng Anh) + learning rate nhỏ có warmup/decay.
 2. **Chất lượng corpus** — web crawl thô rất bẩn; các pipeline lọc như FineWeb quyết định phần lớn chất lượng cuối.
 
-Trong đồ án: notebook `cpt_a_prepare_data.ipynb` (pack corpus 2048-token) + `cpt_b_train.ipynb` (QLoRA r=64, lr=1.5e-5, max_steps=6000, eval_vi/eval_en để phát hiện forgetting).
+Trong đồ án: notebook `CPT-Step-A-Prepare-Qwen3-1.7B.ipynb` (pack corpus 2048-token) + `CPT-Step-B-Train-Qwen3-1.7B.ipynb` (QLoRA r=64, lr=1.5e-5, max_steps=6000, eval_vi/eval_en để phát hiện forgetting).
 
 ## Paper chính
 

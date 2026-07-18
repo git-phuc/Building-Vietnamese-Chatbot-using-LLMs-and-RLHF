@@ -44,7 +44,7 @@ Thiết kế chi tiết từng bước tại spec chính (`Building Vietnamese C
 
 | Bước | Nội dung | Notebook | Output (HF Hub) |
 |---|---|---|---|
-| 1. CPT | QLoRA r=64, ~400M token (wiki-vi + fineweb-2 vie_Latn + 20% fineweb-edu replay), 6000 step | `cpt_a_prepare_data` + `cpt_b_train` | `Qwen3-1.7B-vi-cpt` |
+| 1. CPT | QLoRA r=64, ~400M token (wiki-vi + fineweb-2 vie_Latn + 20% fineweb-edu replay), 6000 step | `CPT-Step-A-Prepare-Qwen3-1.7B` + `CPT-Step-B-Train-Qwen3-1.7B` | `Qwen3-1.7B-vi-cpt` |
 | 2. SFT | QLoRA r=16, 12.7k hội thoại multi-turn, ChatML, loss chỉ trên lượt assistant | `sft_train` | `Qwen3-1.7B-vi-sft` |
 | 3. RM | OpenRLHF `train_rm`, preference data Vi-Alpaca | ⬜ | `Qwen3-1.7B-vi-rm` |
 | 4. DPO | TRL `DPOTrainer` (chính); PPO trên Modal (ablation) | ⬜ | `Qwen3-1.7B-vi-dpo` |

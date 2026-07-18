@@ -47,7 +47,7 @@ Seven steps, all from a raw base model. Insertion points and Hub names are autho
 - Default to **Section 6** for actual project work. Only use Section 2's exact config when the user explicitly asks to "follow the slides" / "do the baseline" for reference/comparison purposes.
 - When the user asks to "implement step X" without specifying which pipeline, assume Section 6 and produce runnable, self-contained Python/bash following Section 6's config (checkpoint/resume included) — not generic defaults.
 - Design/explanation content (what a step does, why, config rationale) goes into the spec doc's `.md`. Runnable training code additionally gets scaffolded as real `.ipynb` notebooks (one per pipeline step, e.g. `cpt.ipynb`, `sft.ipynb`) meant to be run directly on Kaggle — keep the `.md` and the notebook in sync when either changes.
-- Canonical notebooks live in `notebooks/` at the repo root (currently `cpt_a_prepare_data.ipynb` + `cpt_b_train.ipynb`, matching §6.1 exactly). If a worktree has an older per-step notebook that diverges from `notebooks/`, the `notebooks/` version wins.
+- Canonical notebooks live in `notebooks/` at the repo root (currently `CPT-Step-A-Prepare-Qwen3-1.7B.ipynb` + `CPT-Step-B-Train-Qwen3-1.7B.ipynb`, matching §6.1 exactly). If a worktree has an older per-step notebook that diverges from `notebooks/`, the `notebooks/` version wins.
 - If the user's request would conflate Section 2/3 (reference) with Section 6 (actual pipeline), surface the distinction before proceeding.
 - Hardware note: Section 2's PPO assumes a 3-GPU Ray cluster; Section 6's PPO ablation likewise needs Modal/multi-GPU and must never be pointed at Kaggle. Flag this when recommending a step.
 
