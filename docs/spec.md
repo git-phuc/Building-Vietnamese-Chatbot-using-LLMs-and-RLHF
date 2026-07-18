@@ -353,6 +353,7 @@ trainer = Trainer(
         max_steps=MAX_STEPS,
         bf16=is_bfloat16_supported(), fp16=not is_bfloat16_supported(),  # T4 không có bf16
         optim="paged_adamw_8bit",
+        average_tokens_across_devices=False,  # fix fused-loss bug Unsloth #3695 với transformers 5.x
         save_strategy="steps", save_steps=200, save_total_limit=2,
         eval_strategy="steps", eval_steps=600,
         logging_steps=20, report_to="none",
