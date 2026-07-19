@@ -21,8 +21,9 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 | 0 | 2026-07-18 | CPT — Notebook A (pack data) | Kaggle CPU (không tốn quota GPU) | ~?h *(điền nếu nhớ)* | — | Output: `vi-cpt-corpus-2048` (train 80/20 vi-en + eval_vi + eval_en) |
 | 1 | 2026-07-18 | CPT — Notebook B, chạy thử interactive | Kaggle T4 | ~2h *(ước lượng)* | 0 → ~44, **không giữ được gì** | Dừng trước checkpoint đầu (step 200) → mất trắng; bài học: đừng dừng tay trước mốc save |
 | 2 | 2026-07-19 | CPT — Notebook B, batch session đầu | Kaggle T4 x2 | 11h31' (41.459s) | 0 → **400** | ckpt-200 @5h46', ckpt-400 @11h30'; ~95→103 s/step; notebook bản cũ nên không có log loss/W&B train; dừng an toàn bằng budget stop |
+| 3 | 2026-07-19 | CPT — Notebook B, session 2 (LỖI) | Kaggle T4 | ~0.4h | 400 → 400 (không mất gì) | `wandb.init()` timeout 90s → `CommError` ném trong `on_train_begin` giết cả train trước step đầu tiên. Fix: notebook tự init W&B (timeout 300s), lỗi thì tắt W&B và train tiếp |
 
-**Tổng GPU đã dùng: ~13.5h · CPT: 400/3000 step (~52M token)**
+**Tổng GPU đã dùng: ~14h · CPT: 400/3000 step (~52M token)**
 
 ## Cách điền một dòng mới (sau mỗi session)
 
