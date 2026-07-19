@@ -11,7 +11,7 @@
 | `notebooks/` | Notebook Kaggle chạy được thật, **chia folder theo bước** (`01-cpt/` → `06-deploy/`), mỗi folder có README riêng: mục tiêu, notebook nào chạy khi nào, input/output |
 | `research/` | Paper nền tảng theo từng topic (CPT, SFT, RLHF, DPO, QLoRA, LLM Việt/SEA, eval) — mỗi file một topic, map vào §6.x |
 | `report/` | **Report chính thức** — *"RLHF on a Shoestring"*: `report.md` (bản nháp tiếng Việt) + `main.tex`/`references.bib` (bản nộp tiếng Anh, compile pdfLaTeX trên Overleaf) — sửa bên nào thì đồng bộ bên kia |
-| `docs/` | Tài liệu: `spec.md` (spec chính, xem dòng đầu bảng) + `orchestrator.md` (thiết kế multi-agent cho giai đoạn product, bước 6–7) + slide PDF môn học |
+| `docs/` | Tài liệu: `spec.md` (spec chính, xem dòng đầu bảng) + `orchestrator.md` (thiết kế multi-agent cho giai đoạn product, bước 6–7) + `compute-log.md` (**nhật ký giờ GPU/chi phí từng session** — điền sau mỗi session, nguồn số liệu cho report) + slide PDF môn học |
 | `README.md` (file này) | Bảng trạng thái: đang ở bước nào, xong gì rồi |
 | `CLAUDE.md` | Hướng dẫn cho coding agent (Claude Code) |
 
