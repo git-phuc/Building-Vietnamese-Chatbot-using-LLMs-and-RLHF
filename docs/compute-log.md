@@ -24,7 +24,9 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 | 3 | 2026-07-19 | CPT — Notebook B, session 2 (LỖI) | Kaggle T4 | ~0.4h | 400 → 400 (không mất gì) | `wandb.init()` timeout 90s → `CommError` ném trong `on_train_begin` giết cả train trước step đầu tiên. Fix: notebook tự init W&B (timeout 300s), lỗi thì tắt W&B và train tiếp |
 | 4 | 2026-07-19 | CPT — Notebook B, session 3 (LỖI, mất 200 step) | Kaggle T4 | ~6.5h | 400 → 400 (**mất 200 step đã train**) | Resume + log + W&B đều chạy đúng; loss ~3.0, 105-106 s/step. Nhưng eval ở step 600 **OOM**: lúc eval model trả nguyên logits [16, 2048, 151k vocab] → fp32 cần 18.5 GiB > 14.56 GiB của T4 (lúc train không sao vì Unsloth fused loss không materialize logits). Eval chạy TRƯỚC save cùng mốc 600 → chết trước khi push ckpt-600. Fix: `per_device_eval_batch_size=2`, `prediction_loss_only=True`; sau đó hạ `save_steps` 200→20 (push mỗi ~35', retry 3 lần, Hub tự dọn giữ 2 ckpt; eval giữ mốc 600) — từ giờ sự cố kiểu gì cũng chỉ mất ≤20 step |
 
-**Tổng GPU đã dùng: ~20.5h · CPT: 400/3000 step (~52M token)**
+| 5 | 2026-07-20 | CPT — Notebook B, session 4 (THÀNH CÔNG trọn vẹn) | Kaggle T4 x2 | ~10.0h train (36.040s) + setup | 400 → **737** | Bản notebook save-20 chạy chuẩn đầu-cuối: 104 s/step; eval@600 batch 2 hết ~8,5'/tập (rẻ hơn dự tính), eval_vi=5.935 / eval_en=5.788 (mốc eval đầu tiên — theo dõi xu hướng, không so tuyệt đối với train loss ~3.0); push + dọn Hub OK (còn [600, 737]); budget stop tự save tại 737. Train loss ~3.00–3.05 đi ngang (mới 0,12 epoch, LR còn gần đỉnh — bình thường) |
+
+**Tổng GPU đã dùng: ~31h · CPT: 737/3000 step (~97M token)**
 
 ## Cách điền một dòng mới (sau mỗi session)
 
@@ -37,7 +39,7 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 
 | Bước | Ước tính | Căn cứ |
 |---|---|---|
-| CPT (còn 2.600 step) | ~72–75 GPU-giờ ≈ 7 session ≈ 2.5–3 tuần quota | ~100 s/step, ~350 step/session (BUDGET_H=10) |
+| CPT (còn 2.263 step) | ~65 GPU-giờ ≈ 6–7 session ≈ 2–2.5 tuần quota | 104 s/step đo session 4, ~337 step/session (BUDGET_H=10) |
 | SFT (~800 step, r=16) | ~1 session (≤10h) | step SFT nhẹ hơn CPT; đo lại khi chạy |
 | RM / DPO / Eval | chưa có số đo — điền sau | — |
 | PPO ablation (tùy chọn) | Modal, tính $ riêng | §6.4b |
