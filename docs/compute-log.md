@@ -25,8 +25,10 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 | 4 | 2026-07-19 | CPT — Notebook B, session 3 (LỖI, mất 200 step) | Kaggle T4 | ~6.5h | 400 → 400 (**mất 200 step đã train**) | Resume + log + W&B đều chạy đúng; loss ~3.0, 105-106 s/step. Nhưng eval ở step 600 **OOM**: lúc eval model trả nguyên logits [16, 2048, 151k vocab] → fp32 cần 18.5 GiB > 14.56 GiB của T4 (lúc train không sao vì Unsloth fused loss không materialize logits). Eval chạy TRƯỚC save cùng mốc 600 → chết trước khi push ckpt-600. Fix: `per_device_eval_batch_size=2`, `prediction_loss_only=True`; sau đó hạ `save_steps` 200→20 (push mỗi ~35', retry 3 lần, Hub tự dọn giữ 2 ckpt; eval giữ mốc 600) — từ giờ sự cố kiểu gì cũng chỉ mất ≤20 step |
 
 | 5 | 2026-07-20 | CPT — Notebook B, session 4 (THÀNH CÔNG trọn vẹn) | Kaggle T4 x2 | ~10.0h train (36.040s) + setup | 400 → **737** | Bản notebook save-20 chạy chuẩn đầu-cuối: 104 s/step; eval@600 batch 2 hết ~8,5'/tập (rẻ hơn dự tính), eval_vi=5.935 / eval_en=5.788 (mốc eval đầu tiên — theo dõi xu hướng, không so tuyệt đối với train loss ~3.0); push + dọn Hub OK (còn [600, 737]); budget stop tự save tại 737. Train loss ~3.00–3.05 đi ngang (mới 0,12 epoch, LR còn gần đỉnh — bình thường) |
+| 6 | 2026-07-20 | CPT — Notebook B, session 5 (THÀNH CÔNG) | Kaggle T4 x2 | ~10.0h (36.191s) | 737 → **1190** | 92-94 s/step (nhanh hơn session trước, không qua mốc eval); loss ~3.0-3.06 đi ngang, grad_norm ổn định; budget stop tự save tại 1190, push + dọn Hub OK (còn [1000, 1190]) |
+| 7 | 2026-07-20 | CPT — Notebook B, session 6 (THÀNH CÔNG, retry hoạt động đúng) | Kaggle T4 x2 | ~10.0h (36.257s) | 1190 → **1546** | 98-99 s/step; budget stop tại 1546, push checkpoint-1546 gặp lỗi tạm thời `503 Service Unavailable` từ HF Hub lần 1/3 — cơ chế retry (sleep 30s) tự phục hồi, push thành công lần 2, không mất step nào; dọn Hub OK (còn [1400, 1546]). Chưa qua mốc eval (mốc tới: 1800) |
 
-**Tổng GPU đã dùng: ~31h · CPT: 737/3000 step (~97M token)**
+**Tổng GPU đã dùng: ~51h · CPT: 1546/3000 step (~203M token)**
 
 ## Cách điền một dòng mới (sau mỗi session)
 
@@ -39,7 +41,7 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 
 | Bước | Ước tính | Căn cứ |
 |---|---|---|
-| CPT (còn 2.263 step) | ~65 GPU-giờ ≈ 6–7 session ≈ 2–2.5 tuần quota | 104 s/step đo session 4, ~337 step/session (BUDGET_H=10) |
+| CPT (còn 1.454 step) | ~42 GPU-giờ ≈ 4 session ≈ 1.5 tuần quota | 92-104 s/step đo session 4-6, ~350-370 step/session (BUDGET_H=10) |
 | SFT (~800 step, r=16) | ~1 session (≤10h) | step SFT nhẹ hơn CPT; đo lại khi chạy |
 | RM / DPO / Eval | chưa có số đo — điền sau | — |
 | PPO ablation (tùy chọn) | Modal, tính $ riêng | §6.4b |
