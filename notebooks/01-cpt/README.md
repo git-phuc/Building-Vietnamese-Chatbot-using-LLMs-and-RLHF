@@ -6,6 +6,7 @@
 |---|---|---|---|
 | `CPT-Step-A-Prepare-Qwen3-1.7B.ipynb` | Tải wiki-vi + fineweb-2 (vie) + fineweb-edu (en replay), tokenize, pack block 2048 token, push lên Hub | **Đúng 1 lần** | Không cần |
 | `CPT-Step-B-Train-Qwen3-1.7B.ipynb` | QLoRA r=64 trên base 4-bit, lr=1.5e-5, `max_steps=3000`; tự resume từ checkpoint Hub, tự dừng trước 8h | **Run All mỗi session** đến khi đủ 3000 step | T4 x1 |
+| `CPT-Smoke-Test-Qwen3-1.7B.ipynb` | So sánh eval_vi loss + sinh thử văn bản giữa raw base và checkpoint mới nhất trên Hub — không train, chỉ inference | Tùy chọn, bất cứ lúc nào giữa các session B muốn kiểm tra CPT có tác dụng | T4 x1, ~15-20' |
 
 **Input:** `Qwen/Qwen3-1.7B-Base` + corpus tự build.
 **Output trên Hub:**
