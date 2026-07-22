@@ -29,6 +29,22 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 | 7 | 2026-07-20 | CPT — Notebook B, session 6 (THÀNH CÔNG, retry hoạt động đúng) | Kaggle T4 x2 | ~10.0h (36.257s) | 1190 → **1546** | 98-99 s/step; eval@1200 batch 2: eval_vi=6.144 / eval_en=5.929; budget stop tại 1546, push checkpoint-1546 gặp lỗi tạm thời `503 Service Unavailable` từ HF Hub lần 1/3 — cơ chế retry (sleep 30s) tự phục hồi, push thành công lần 2, không mất step nào; dọn Hub OK (còn [1400, 1546]) |
 | 8 | 2026-07-20 | CPT — Notebook B, session 7 (THÀNH CÔNG) | Kaggle T4 x2 | ~10.0h (36.207s) | 1546 → **1858** | 112 s/step (chậm hơn 2 session trước — có thể do T4 đơn thay vì x2, hoặc contention); eval@1800 batch 2 ~9,2'/tập: eval_vi=6.138 / eval_en=5.954 — **nhỉnh hơn eval@600** (vi 5.935→6.144(@1200)→6.138, en 5.788→5.929(@1200)→5.954): chưa có xu hướng giảm rõ rệt qua 3 mốc đầu, cần theo dõi tiếp ở 2400/3000 trước khi kết luận (train loss vẫn ổn định ~3.0, không có dấu hiệu overfit/collapse); push + dọn Hub OK (còn [1800, 1858]); budget stop tự save tại 1858 |
 
+## ⚠️ Theo dõi: smoke test cho thấy checkpoint-1858 TỆ HƠN raw base trên eval_vi
+
+`CPT-Smoke-Test-Qwen3-1.7B.ipynb` (2026-07-22), so trên 100 block `eval_vi`, đo 2 lần cho cùng 1 số (đã loại trừ nghi ngờ lỗi đo do `for_inference()`):
+
+| | eval_vi loss |
+|---|---|
+| Raw base (`Qwen/Qwen3-1.7B-Base`) | 2.0355 |
+| checkpoint-1858 | 2.8611 |
+| Chênh lệch (base − ckpt) | **−0.8256** (âm = CPT đang làm tệ hơn, chưa cải thiện) |
+
+Khớp với xu hướng eval_vi/eval_en không giảm qua 3 mốc 600/1200/1800 (xem session 5-8). Hai giả thuyết: (a) "stability gap" tạm thời của continual pretraining — model tạm quên trước khi hội tụ lại khi LR giảm sâu hơn theo cosine; (b) LR 1.5e-5 kết hợp `use_rslora=True` (scale = alpha/√r = 64/8 = 8, gấp 8 lần LoRA chuẩn) đẩy update quá mạnh, có thể không tự phục hồi.
+
+**Hành động:** chạy `CPT-Smoke-Test-Qwen3-1.7B.ipynb` lại sau MỖI session tiếp theo, ghi thêm dòng vào bảng trên để theo dõi xu hướng khoảng cách (base − ckpt):
+- Thu hẹp dần về 0 rồi dương → stability gap, cứ theo kế hoạch hiện tại.
+- Tiếp tục giãn ở ~2200-2400 → dừng, hạ LR hoặc tắt `use_rslora`, train lại từ đầu (chấp nhận mất công đã train).
+
 **Tổng GPU đã dùng: ~61h · CPT: 1858/3000 step (~244M token)**
 
 ## Cách điền một dòng mới (sau mỗi session)
