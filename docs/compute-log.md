@@ -26,9 +26,10 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 
 | 5 | 2026-07-20 | CPT — Notebook B, session 4 (THÀNH CÔNG trọn vẹn) | Kaggle T4 x2 | ~10.0h train (36.040s) + setup | 400 → **737** | Bản notebook save-20 chạy chuẩn đầu-cuối: 104 s/step; eval@600 batch 2 hết ~8,5'/tập (rẻ hơn dự tính), eval_vi=5.935 / eval_en=5.788 (mốc eval đầu tiên — theo dõi xu hướng, không so tuyệt đối với train loss ~3.0); push + dọn Hub OK (còn [600, 737]); budget stop tự save tại 737. Train loss ~3.00–3.05 đi ngang (mới 0,12 epoch, LR còn gần đỉnh — bình thường) |
 | 6 | 2026-07-20 | CPT — Notebook B, session 5 (THÀNH CÔNG) | Kaggle T4 x2 | ~10.0h (36.191s) | 737 → **1190** | 92-94 s/step (nhanh hơn session trước, không qua mốc eval); loss ~3.0-3.06 đi ngang, grad_norm ổn định; budget stop tự save tại 1190, push + dọn Hub OK (còn [1000, 1190]) |
-| 7 | 2026-07-20 | CPT — Notebook B, session 6 (THÀNH CÔNG, retry hoạt động đúng) | Kaggle T4 x2 | ~10.0h (36.257s) | 1190 → **1546** | 98-99 s/step; budget stop tại 1546, push checkpoint-1546 gặp lỗi tạm thời `503 Service Unavailable` từ HF Hub lần 1/3 — cơ chế retry (sleep 30s) tự phục hồi, push thành công lần 2, không mất step nào; dọn Hub OK (còn [1400, 1546]). Chưa qua mốc eval (mốc tới: 1800) |
+| 7 | 2026-07-20 | CPT — Notebook B, session 6 (THÀNH CÔNG, retry hoạt động đúng) | Kaggle T4 x2 | ~10.0h (36.257s) | 1190 → **1546** | 98-99 s/step; eval@1200 batch 2: eval_vi=6.144 / eval_en=5.929; budget stop tại 1546, push checkpoint-1546 gặp lỗi tạm thời `503 Service Unavailable` từ HF Hub lần 1/3 — cơ chế retry (sleep 30s) tự phục hồi, push thành công lần 2, không mất step nào; dọn Hub OK (còn [1400, 1546]) |
+| 8 | 2026-07-20 | CPT — Notebook B, session 7 (THÀNH CÔNG) | Kaggle T4 x2 | ~10.0h (36.207s) | 1546 → **1858** | 112 s/step (chậm hơn 2 session trước — có thể do T4 đơn thay vì x2, hoặc contention); eval@1800 batch 2 ~9,2'/tập: eval_vi=6.138 / eval_en=5.954 — **nhỉnh hơn eval@600** (vi 5.935→6.144(@1200)→6.138, en 5.788→5.929(@1200)→5.954): chưa có xu hướng giảm rõ rệt qua 3 mốc đầu, cần theo dõi tiếp ở 2400/3000 trước khi kết luận (train loss vẫn ổn định ~3.0, không có dấu hiệu overfit/collapse); push + dọn Hub OK (còn [1800, 1858]); budget stop tự save tại 1858 |
 
-**Tổng GPU đã dùng: ~51h · CPT: 1546/3000 step (~203M token)**
+**Tổng GPU đã dùng: ~61h · CPT: 1858/3000 step (~244M token)**
 
 ## Cách điền một dòng mới (sau mỗi session)
 
@@ -41,7 +42,7 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 
 | Bước | Ước tính | Căn cứ |
 |---|---|---|
-| CPT (còn 1.454 step) | ~42 GPU-giờ ≈ 4 session ≈ 1.5 tuần quota | 92-104 s/step đo session 4-6, ~350-370 step/session (BUDGET_H=10) |
+| CPT (còn 1.142 step) | ~33 GPU-giờ ≈ 3-4 session ≈ 1-1.5 tuần quota | 92-112 s/step đo session 4-7, ~310-370 step/session (BUDGET_H=10) |
 | SFT (~800 step, r=16) | ~1 session (≤10h) | step SFT nhẹ hơn CPT; đo lại khi chạy |
 | RM / DPO / Eval | chưa có số đo — điền sau | — |
 | PPO ablation (tùy chọn) | Modal, tính $ riêng | §6.4b |
