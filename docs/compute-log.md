@@ -29,23 +29,17 @@ Sổ ghi chép mọi session train/chuẩn bị data, để viết mục *Experi
 | 7 | 2026-07-20 | CPT — Notebook B, session 6 (THÀNH CÔNG, retry hoạt động đúng) | Kaggle T4 x2 | ~10.0h (36.257s) | 1190 → **1546** | 98-99 s/step; eval@1200 batch 2: eval_vi=6.144 / eval_en=5.929; budget stop tại 1546, push checkpoint-1546 gặp lỗi tạm thời `503 Service Unavailable` từ HF Hub lần 1/3 — cơ chế retry (sleep 30s) tự phục hồi, push thành công lần 2, không mất step nào; dọn Hub OK (còn [1400, 1546]) |
 | 8 | 2026-07-20 | CPT — Notebook B, session 7 (THÀNH CÔNG) | Kaggle T4 x2 | ~10.0h (36.207s) | 1546 → **1858** | 112 s/step (chậm hơn 2 session trước — có thể do T4 đơn thay vì x2, hoặc contention); eval@1800 batch 2 ~9,2'/tập: eval_vi=6.138 / eval_en=5.954 — **nhỉnh hơn eval@600** (vi 5.935→6.144(@1200)→6.138, en 5.788→5.929(@1200)→5.954): chưa có xu hướng giảm rõ rệt qua 3 mốc đầu, cần theo dõi tiếp ở 2400/3000 trước khi kết luận (train loss vẫn ổn định ~3.0, không có dấu hiệu overfit/collapse); push + dọn Hub OK (còn [1800, 1858]); budget stop tự save tại 1858 |
 
-## ⚠️ Theo dõi: smoke test cho thấy checkpoint-1858 TỆ HƠN raw base trên eval_vi
+| 9 | 2026-07-22 | CPT — Notebook B, session 8 (THÀNH CÔNG, nhưng xác nhận regression) | Kaggle T4 x2 | ~10.0h (36.267s) | 1858 → **2228** | 97-99 s/step; dòng so sánh adapter-vs-base mới (mỗi save) đo trực tiếp trong training: checkpoint-2000 chênh=−0.746, checkpoint-2200 chênh=−0.759, checkpoint-2228 chênh=−0.741 — **base (tắt adapter) = 2.0246 giống hệt cả 3 lần** (xác nhận phép đo đúng, không phải lỗi tính toán), gap phẳng lì không thu hẹp dù LR đã giảm 5x từ đỉnh. Loại giả thuyết "stability gap tự hồi phục" → xem quyết định bên dưới |
 
-`CPT-Smoke-Test-Qwen3-1.7B.ipynb` (2026-07-22), so trên 100 block `eval_vi`, đo 2 lần cho cùng 1 số (đã loại trừ nghi ngờ lỗi đo do `for_inference()`):
+## ⚠️ ĐÃ XỬ LÝ: checkpoint-1858/2228 (repo `-ckpt` v1) tệ hơn raw base trên eval_vi, train lại từ đầu (v2)
 
-| | eval_vi loss |
-|---|---|
-| Raw base (`Qwen/Qwen3-1.7B-Base`) | 2.0355 |
-| checkpoint-1858 | 2.8611 |
-| Chênh lệch (base − ckpt) | **−0.8256** (âm = CPT đang làm tệ hơn, chưa cải thiện) |
+`CPT-Smoke-Test-Qwen3-1.7B.ipynb` (2026-07-22) + dòng so sánh trong training (session 9) đều xác nhận: checkpoint càng train (1858→2000→2200→2228) loss trên `eval_vi` vẫn tệ hơn base gốc ~0.75-0.85 nats, không đổi qua 4 checkpoint / 370 step dù LR đã giảm 5 lần từ đỉnh — loại được giả thuyết "stability gap tạm thời tự hồi phục".
 
-Khớp với xu hướng eval_vi/eval_en không giảm qua 3 mốc 600/1200/1800 (xem session 5-8). Hai giả thuyết: (a) "stability gap" tạm thời của continual pretraining — model tạm quên trước khi hội tụ lại khi LR giảm sâu hơn theo cosine; (b) LR 1.5e-5 kết hợp `use_rslora=True` (scale = alpha/√r = 64/8 = 8, gấp 8 lần LoRA chuẩn) đẩy update quá mạnh, có thể không tự phục hồi.
+**Nguyên nhân nghi nhiều nhất (chưa chứng minh 100%, nhưng là biến số rõ nhất):** `use_rslora=True` với r=64 cho scale = alpha/√r = 64/8 = **8**, gấp 8 lần LoRA chuẩn (alpha/r = 1) ở cùng lr=1.5e-5 — effective update mạnh hơn dự tính khi chọn LR. grad_norm ổn định suốt (2-6, không nổ) khớp với "học ổn định nhưng lệch hướng" hơn là lỗi số học.
 
-**Hành động:** chạy `CPT-Smoke-Test-Qwen3-1.7B.ipynb` lại sau MỖI session tiếp theo, ghi thêm dòng vào bảng trên để theo dõi xu hướng khoảng cách (base − ckpt):
-- Thu hẹp dần về 0 rồi dương → stability gap, cứ theo kế hoạch hiện tại.
-- Tiếp tục giãn ở ~2200-2400 → dừng, hạ LR hoặc tắt `use_rslora`, train lại từ đầu (chấp nhận mất công đã train).
+**Quyết định (2026-07-22):** train lại từ đầu, `use_rslora=False`, giữ nguyên r=64/alpha=64/lr=1.5e-5 để cô lập đúng 1 biến. Checkpoint v1 (repo `Qwen3-1.7B-vi-cpt-ckpt`, dừng ở step 2228, ~65 GPU-h) **giữ nguyên không xóa** để viết postmortem trong report — không dùng để resume nữa. Repo mới: `Qwen3-1.7B-vi-cpt-ckpt-v2`. Notebook đã có sẵn dòng so sánh adapter-vs-base mỗi lần save (từ session 9) — mục tiêu ở v2 là thấy `chênh` dương sớm, không cần đợi hết 3000 step mới biết fix có tác dụng.
 
-**Tổng GPU đã dùng: ~61h · CPT: 1858/3000 step (~244M token)**
+**Tổng GPU đã dùng: ~71h · CPT v1 (bỏ, giữ để đối chiếu): dừng ở 2228/3000 step · CPT v2: 0/3000 step (train lại từ đầu)**
 
 ## Cách điền một dòng mới (sau mỗi session)
 
@@ -58,7 +52,7 @@ Khớp với xu hướng eval_vi/eval_en không giảm qua 3 mốc 600/1200/1800
 
 | Bước | Ước tính | Căn cứ |
 |---|---|---|
-| CPT (còn 1.142 step) | ~33 GPU-giờ ≈ 3-4 session ≈ 1-1.5 tuần quota | 92-112 s/step đo session 4-7, ~310-370 step/session (BUDGET_H=10) |
+| CPT v2 (3.000 step, train lại từ đầu) | ~80 GPU-giờ ≈ 8-9 session ≈ 3 tuần quota | 92-112 s/step đo v1 session 4-9; v1 đã tốn ~65h không dùng được, không tính vào ETA còn lại |
 | SFT (~800 step, r=16) | ~1 session (≤10h) | step SFT nhẹ hơn CPT; đo lại khi chạy |
 | RM / DPO / Eval | chưa có số đo — điền sau | — |
 | PPO ablation (tùy chọn) | Modal, tính $ riêng | §6.4b |
